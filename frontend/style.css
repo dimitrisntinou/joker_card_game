@@ -16,7 +16,30 @@ body { margin: 0; font-family: Arial, sans-serif; overflow: hidden; background: 
     transition: transform 0.2s;
     cursor: pointer;
 }
-.card:hover { transform: translateY(-15px); }
+
+.card:hover {
+    transform: none; /* Disable flying for everyone by default */
+}
+
+/* 2. ADD hover ONLY for valid cards */
+.card.valid-card {
+    cursor: pointer;
+    transition: transform 0.2s ease-out;
+    filter: brightness(100%);
+}
+
+.card.valid-card:hover {
+    transform: translateY(-20px) scale(1.1); /* Fly up and grow slightly */
+    box-shadow: 0 0 15px gold; /* Add a glow */
+    z-index: 100;
+}
+
+.card.invalid-card {
+    cursor: not-allowed;
+    filter: brightness(60%) grayscale(80%); /* Darker and grey */
+    opacity: 0.8;
+}
+
 .card-back {
     width: 71px; height: 96px;
     background: repeating-linear-gradient(45deg, #606dbc, #606dbc 10px, #465298 10px, #465298 20px);
@@ -53,3 +76,32 @@ body { margin: 0; font-family: Arial, sans-serif; overflow: hidden; background: 
 .modal-content { background-color: #fefefe; padding: 20px; border-radius: 10px; width: 300px; text-align: center; }
 .bid-btn { background-color: gold; border: none; padding: 10px 15px; margin: 5px; cursor: pointer; font-weight: bold; font-size: 16px; border-radius: 5px; }
 .bid-btn:hover { background-color: #ffd700; transform: scale(1.1); }
+
+#center-table {
+    position: absolute;
+    /* Ensure the table itself is positioned correctly */
+    z-index: 1; 
+}
+
+#played-cards-area {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 100;
+    pointer-events: none; 
+}
+
+#played-cards-area .card {
+    position: absolute;
+    width: 71px;  /* Force normal width */
+    height: 96px; /* Force normal height */
+    transform: translate(-50%, -50%); /* Perfect Center alignment */
+    transition: all 0.5s ease-out;
+    box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+    z-index: auto; /* Let them stack naturally (last played is on top) */
+}
+
+#ace-hunt-display {
+    /* Ensure this is higher than the table background */
+    z-index: 50; 
+}

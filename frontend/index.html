@@ -5,6 +5,23 @@
     <title>Joker Online</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        /* Add these styles specifically for the Joker Modal */
+        .joker-section { margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
+        .joker-btn { 
+            padding: 8px 12px; margin: 4px; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; 
+            font-size: 14px; color: white;
+        }
+        .btn-H { background: #ff5555; } /* Hearts */
+        .btn-D { background: #ff5555; } /* Diamonds */
+        .btn-S { background: #333; }    /* Spades */
+        .btn-C { background: #333; }    /* Clubs */
+        .btn-NT { background: gold; color: black; } /* Trump/NoTrump */
+        
+        .mode-title { font-size: 18px; font-weight: bold; margin-bottom: 5px; color: #333; }
+        .mode-take { background: #dff0d8; border-color: #d6e9c6; }
+        .mode-give { background: #f2dede; border-color: #ebccd1; }
+    </style>
 </head>
 <body>
 
@@ -18,49 +35,73 @@
     </div>
 
     <div id="game-screen" style="display:none; height: 100vh; background: #2e8b57; overflow: hidden;">
-        
         <div id="player-top" class="player-slot" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%);">
-            <div class="avatar">Top</div>
-            <div class="player-info"><span id="name-top">Waiting...</span></div>
+            <div class="avatar">Top</div><div class="player-info"><span id="name-top">Waiting...</span></div>
         </div>
         <div id="player-left" class="player-slot" style="position: absolute; top: 50%; left: 20px; transform: translateY(-50%);">
-            <div class="avatar">Left</div>
-            <div class="player-info"><span id="name-left">Waiting...</span></div>
+            <div class="avatar">Left</div><div class="player-info"><span id="name-left">Waiting...</span></div>
         </div>
         <div id="player-right" class="player-slot" style="position: absolute; top: 50%; right: 20px; transform: translateY(-50%);">
-            <div class="avatar">Right</div>
-            <div class="player-info"><span id="name-right">Waiting...</span></div>
+            <div class="avatar">Right</div><div class="player-info"><span id="name-right">Waiting...</span></div>
         </div>
 
-        <div id="center-table" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 450px; height: 280px; border: 8px solid rgba(0,0,0,0.3); border-radius: 150px; display: flex; justify-content: center; align-items: center;">
-            
-            <button id="ready-btn" onclick="sendReady()" disabled style="position: absolute; z-index: 10; padding: 15px 30px; font-size: 20px; font-weight: bold; background: #555; color:white; border: 2px solid white; border-radius: 10px; cursor: not-allowed;">
-                WAITING FOR PLAYERS...
-            </button>
-
+        <div id="center-table" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 800px; height: 450px; border: 12px solid rgba(0,0,0,0.3); border-radius: 200px; display: flex; justify-content: center; align-items: center;">
+            <div id="played-cards-area" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none;"></div>
+            <button id="ready-btn" onclick="sendReady()" disabled style="position: absolute; z-index: 10; padding: 15px 30px; font-size: 20px; font-weight: bold; background: #555; color:white; border: 2px solid white; border-radius: 10px; cursor: not-allowed;">WAITING...</button>
             <div id="ace-hunt-display" style="display:none; position: absolute; z-index: 20; text-align: center; color: gold; font-size: 20px; font-weight: bold; text-shadow: 1px 1px black;">
-                <div id="ace-msg">Checking...</div>
-                <div id="ace-card-spot" class="card" style="margin: 10px auto;"></div>
+                <div id="ace-msg">Checking...</div><div id="ace-card-spot" class="card" style="margin: 10px auto;"></div>
             </div>
-
-            <div id="deck-pile" class="card-back" style="position: absolute; left: 30px; display:none;"></div>
-            <div id="trump-card-slot" style="position: absolute; right: 30px; transform: rotate(90deg); display:none;"></div>
-            
+            <div id="deck-pile" class="card-back" style="position: absolute; left: 60px; display:none;"></div>
+            <div id="trump-card-slot" style="position: absolute; right: 60px; transform: rotate(90deg); display:none;"></div>
             <div id="trump-label" style="position: absolute; bottom: -40px; color: gold; font-weight: bold;"></div>
         </div>
 
         <div id="player-bottom" class="player-slot" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 80%;">
             <div id="my-hand" style="display: flex; justify-content: center; gap: -20px;"></div>
         </div>
-
         <div id="logs" style="position: absolute; bottom: 10px; left: 10px; width: 250px; height: 150px; overflow-y: scroll; background: rgba(0,0,0,0.5); color: white; padding: 5px; font-size: 12px; pointer-events: none;"></div>
     </div>
 
     <div id="bidding-modal" class="modal">
         <div class="modal-content">
             <h3>Your Turn to Bid</h3>
-            <p id="forbidden-msg" style="color: red; display:none;">Forbidden Bid: <span id="forbidden-val"></span></p>
+            <p id="forbidden-msg" style="color: red; display:none;">Forbidden: <span id="forbidden-val"></span></p>
             <div id="bid-buttons-container"></div>
+        </div>
+    </div>
+
+    <div id="joker-modal" class="modal">
+        <div class="modal-content" style="width: 450px; text-align: left;">
+            <h3 style="text-align:center; margin-top:0;">Joker Options</h3>
+            
+            <div id="joker-options-lead" style="display:none;">
+                <div class="joker-section mode-take">
+                    <div class="mode-title">I WANT TO TAKE (Highest)</div>
+                    <button class="joker-btn btn-NT" onclick="submitJokerMove('TAKE', 'TRUMP')">Highest Trump (Kozer)</button>
+                    <button class="joker-btn btn-H" onclick="submitJokerMove('TAKE', 'H')">Highest Hearts ♥</button>
+                    <button class="joker-btn btn-D" onclick="submitJokerMove('TAKE', 'D')">Highest Diamonds ♦</button>
+                    <button class="joker-btn btn-C" onclick="submitJokerMove('TAKE', 'C')">Highest Clubs ♣</button>
+                    <button class="joker-btn btn-S" onclick="submitJokerMove('TAKE', 'S')">Highest Spades ♠</button>
+                </div>
+
+                <div class="joker-section mode-give">
+                    <div class="mode-title">I WANT TO GIVE (Lowest)</div>
+                    <button class="joker-btn btn-NT" onclick="submitJokerMove('GIVE', 'TRUMP')">Trump (Kozer) Takes It</button>
+                    <button class="joker-btn btn-H" onclick="submitJokerMove('GIVE', 'H')">Hearts ♥ Takes It</button>
+                    <button class="joker-btn btn-D" onclick="submitJokerMove('GIVE', 'D')">Diamonds ♦ Takes It</button>
+                    <button class="joker-btn btn-C" onclick="submitJokerMove('GIVE', 'C')">Clubs ♣ Takes It</button>
+                    <button class="joker-btn btn-S" onclick="submitJokerMove('GIVE', 'S')">Spades ♠ Takes It</button>
+                </div>
+            </div>
+
+            <div id="joker-options-follow" style="display:none; text-align:center;">
+                <p>You are not the leader. Choose strategy:</p>
+                <button class="joker-btn mode-take" style="font-size: 20px; width: 100%;" onclick="submitJokerMove('TAKE', 'TRUMP')">TAKE (Highest Trump)</button>
+                <br><br>
+                <button class="joker-btn mode-give" style="font-size: 20px; width: 100%;" onclick="submitJokerMove('GIVE', 'LEAD')">GIVE (Lowest Card)</button>
+            </div>
+            
+            <button onclick="closeJokerModal()" style="margin-top:10px; width:100%; padding:10px;">Cancel</button>
         </div>
     </div>
 
@@ -69,29 +110,32 @@
         var mySid = "";
         var myIndex = -1;
         var allPlayers = [];
-        var myTurn = false; // NEW: Tracks if it's my turn to play
+        var myTurn = false; 
+        
+        // Track the joker currently being played
+        var pendingJokerIndex = -1; 
+        var isLeader = false; // Is this the first card of the trick?
 
-        // --- 1. CONNECTION ---
+        // NEW: Track game state for validation
+        var currentTrumpSuit = null; 
+        var currentLeadSuit = null; 
+        var myHandData = []; // Store hand data globally
+
+        // --- CONNECTION & SETUP ---
         socket.on('connect', function() { console.log("Connected"); });
-
         socket.on('your_id', function(data) { mySid = data.sid; });
-
         socket.on('update_player_list', function(data) {
             allPlayers = data.players;
             myIndex = allPlayers.findIndex(p => p.sid === mySid);
             updateTablePositions();
         });
-
         socket.on('enable_ready_btn', function() {
             var btn = document.getElementById("ready-btn");
-            btn.disabled = false;
-            btn.innerText = "I AM READY";
-            btn.style.background = "gold";
-            btn.style.color = "black";
-            btn.style.cursor = "pointer";
+            btn.disabled = false; btn.innerText = "I AM READY"; 
+            btn.style.background = "gold"; btn.style.color = "black"; btn.style.cursor = "pointer";
         });
 
-        // --- 2. LOBBY ACTIONS ---
+        // --- LOBBY ---
         function joinGame() {
             var name = document.getElementById("username").value;
             if(name) {
@@ -100,110 +144,82 @@
                 document.getElementById("game-screen").style.display = "block";
             }
         }
-
         function sendReady() {
             socket.emit('player_ready');
             var btn = document.getElementById("ready-btn");
-            btn.innerText = "READY!";
-            btn.style.background = "#4CAF50"; 
-            btn.disabled = true;
+            btn.innerText = "READY!"; btn.disabled = true; btn.style.background = "#4CAF50"; 
         }
 
-        // --- 3. ACE HUNT ANIMATION ---
+        // --- ACE HUNT ---
         socket.on('ace_hunt_animation', function(data) {
             document.getElementById("ready-btn").style.display = "none";
             document.getElementById("ace-hunt-display").style.display = "block";
-            
             let sequence = data.sequence;
             let i = 0;
-            
             let interval = setInterval(() => {
-                if (i >= sequence.length) {
-                    clearInterval(interval);
-                    return;
-                }
-                
+                if (i >= sequence.length) { clearInterval(interval); return; }
                 let step = sequence[i];
                 let cardDiv = document.getElementById("ace-card-spot");
                 cardDiv.className = `card rank-${step.card.rank} suit-${step.card.suit}`;
                 document.getElementById("ace-msg").innerText = step.name + " gets...";
-
                 if (step.is_ace) {
                     clearInterval(interval);
                     document.getElementById("ace-msg").innerHTML = `<span style="color:red; font-size:24px;">ACE! ${step.name} is Dealer!</span>`;
                     setTimeout(() => {
                         document.getElementById("ace-hunt-display").style.display = "none";
-                        if (mySid === step.sid) socket.emit('start_real_round');
-                    }, 3000);
+                        if (myIndex === 0) socket.emit('start_real_round');
+                    }, 2000);
                 }
                 i++;
-            }, 1000);
+            }, 200);
         });
 
-        // --- 4. GAME ROUNDS & BIDDING ---
+        // --- ROUND START ---
         socket.on('new_round', function(data) {
-            // 1. Show Deck & Trump Slots
+            currentLeadSuit = null;
+            currentTrumpSuit = (data.trump.suit === 'NT') ? null : data.trump.suit;
+
             document.getElementById("deck-pile").style.display = "block";
             document.getElementById("trump-card-slot").style.display = "block";
             
-            // 2. Setup the Trump Card Visual (The sideways card)
             var tSlot = document.getElementById("trump-card-slot");
             var label = document.getElementById("trump-label");
-            
-            // Helper variables
-            var suitChar = data.trump.suit; // "H", "D", "C", "S" or "NT"
-            var symbol = "";
-            var color = "white";
+            var suitChar = data.trump.suit; 
+            var symbol = ""; var color = "white";
 
-            // 3. Logic to pick Symbol and Color
-            if (suitChar === 'H') { symbol = "♥"; color = "#ff5555"; } // Red
-            else if (suitChar === 'D') { symbol = "♦"; color = "#ff5555"; } // Red
+            if (suitChar === 'H') { symbol = "♥"; color = "#ff5555"; } 
+            else if (suitChar === 'D') { symbol = "♦"; color = "#ff5555"; } 
             else if (suitChar === 'C') { symbol = "♣"; color = "black"; }
             else if (suitChar === 'S') { symbol = "♠"; color = "black"; }
             
-            // 4. Update the Label (Text + Symbol)
             if (data.trump.rank === 'Joker') {
                 tSlot.className = `card card-joker joker-${data.trump.suit.toLowerCase()}`;
-                label.innerHTML = "NO TRUMP (Joker)";
-                label.style.color = "gold";
+                label.innerHTML = "NO TRUMP (Joker)"; label.style.color = "gold";
             } else if (suitChar === 'NT') {
-                tSlot.className = "card card-back"; // Or hidden
-                label.innerHTML = "NO TRUMP";
-                label.style.color = "gold";
+                tSlot.className = "card card-back"; label.innerHTML = "NO TRUMP"; label.style.color = "gold";
             } else {
-                // STANDARD TRUMP: Show "TRUMP ♥"
                 tSlot.className = `card rank-${data.trump.rank} suit-${data.trump.suit}`;
                 label.innerHTML = `TRUMP <span style="color: ${color}; font-size: 28px;">${symbol}</span>`;
                 label.style.color = "white";
             }
-
-            // 5. Render your Hand
             renderHand(data.hand);
         });
 
         socket.on('your_turn_to_bid', function(data) {
             var container = document.getElementById("bid-buttons-container");
             container.innerHTML = ""; 
-            
             var handSize = document.getElementById("my-hand").children.length;
-            var forbidden = data.forbidden;
-
-            if (forbidden !== null) {
+            if (data.forbidden !== null) {
                 document.getElementById("forbidden-msg").style.display = "block";
-                document.getElementById("forbidden-val").innerText = forbidden;
+                document.getElementById("forbidden-val").innerText = data.forbidden;
             } else {
                 document.getElementById("forbidden-msg").style.display = "none";
             }
-
             for (let i = 0; i <= handSize; i++) {
                 let btn = document.createElement("button");
-                btn.innerText = i;
-                btn.className = "bid-btn";
-                
-                if (i === forbidden) {
-                    btn.disabled = true;
-                    btn.style.background = "#555";
-                    btn.style.cursor = "not-allowed";
+                btn.innerText = i; btn.className = "bid-btn";
+                if (i === data.forbidden) {
+                    btn.disabled = true; btn.style.background = "#555"; btn.style.cursor = "not-allowed";
                 } else {
                     btn.onclick = function() { 
                         socket.emit('player_bid', {amount: i});
@@ -215,99 +231,173 @@
             document.getElementById("bidding-modal").style.display = "flex";
         });
 
-        // --- 5. CARD PLAYING LOGIC (NEW!) ---
-
-        socket.on('your_turn_to_play', function() {
+        // --- PLAYING LOGIC ---
+        socket.on('your_turn_to_play', function(data) {
             myTurn = true;
+            // The server tells us if we are the leader (is_leader = True/False)
+            isLeader = data.is_leader; 
+            
             document.getElementById("logs").innerHTML += "<div style='color:lime; font-weight:bold;'>YOUR TURN TO PLAY!</div>";
             document.getElementById("my-hand").style.borderTop = "4px solid lime";
+
+            highlightValidCards();
         });
 
         socket.on('update_turn_indicator', function(data) {
             if(data.sid !== mySid) {
                 myTurn = false;
                 document.getElementById("my-hand").style.borderTop = "none";
+                // If not my turn, remove highlights
+                var cards = document.querySelectorAll("#my-hand .card");
+                cards.forEach(c => {
+                    c.classList.remove("valid-card", "invalid-card");
+                });
             }
             document.getElementById("logs").innerHTML += `<div>${data.name}'s turn...</div>`;
-            var logs = document.getElementById("logs");
-            logs.scrollTop = logs.scrollHeight;
+            var logs = document.getElementById("logs"); logs.scrollTop = logs.scrollHeight;
         });
 
+        // --- NEW: LOGIC TO CALCULATE VALID MOVES ON FRONTEND ---
+        function highlightValidCards() {
+            var handDiv = document.getElementById("my-hand");
+            var cardElements = handDiv.children;
+
+            // 1. Check holdings
+            // We use 'myHandData' which is updated in renderHand
+            var hasLead = false;
+            var hasTrump = false;
+
+            if (currentLeadSuit) {
+                hasLead = myHandData.some(c => c.suit === currentLeadSuit && c.rank !== 'Joker');
+            }
+            if (currentTrumpSuit) {
+                hasTrump = myHandData.some(c => c.suit === currentTrumpSuit && c.rank !== 'Joker');
+            }
+
+            // 2. Loop through DOM elements and apply classes
+            for (let i = 0; i < cardElements.length; i++) {
+                let el = cardElements[i];
+                let card = myHandData[i]; // Corresponding data
+                let isValid = false;
+
+                // Joker is always valid
+                if (card.rank === 'Joker') {
+                    isValid = true;
+                }
+                // If I am leader (or table empty), anything is valid
+                else if (!currentLeadSuit) {
+                    isValid = true;
+                }
+                // MUST FOLLOW SUIT
+                else if (hasLead) {
+                    if (card.suit === currentLeadSuit) isValid = true;
+                }
+                // MUST TRUMP
+                else if (hasTrump) {
+                    if (card.suit === currentTrumpSuit) isValid = true;
+                }
+                // FREE PLAY
+                else {
+                    isValid = true;
+                }
+
+                // Apply CSS Classes
+                if (isValid) {
+                    el.classList.add("valid-card");
+                    el.classList.remove("invalid-card");
+                } else {
+                    el.classList.add("invalid-card");
+                    el.classList.remove("valid-card");
+                }
+            }
+        }
+
         function handleCardClick(card, index) {
-            if (!myTurn) {
-                alert("Wait for your turn!");
+            if (!myTurn) { alert("Wait for your turn!"); return; }
+
+            // IF JOKER IS CLICKED -> OPEN MODAL
+            if (card.rank === 'Joker') {
+                pendingJokerIndex = index;
+                var modal = document.getElementById("joker-modal");
+                
+                if (isLeader) {
+                    document.getElementById("joker-options-lead").style.display = "block";
+                    document.getElementById("joker-options-follow").style.display = "none";
+                } else {
+                    document.getElementById("joker-options-lead").style.display = "none";
+                    document.getElementById("joker-options-follow").style.display = "block";
+                }
+                
+                modal.style.display = "flex";
                 return;
             }
-            // Send move to server
+
+            // Normal Card -> Just Play
             socket.emit('play_card', {card_index: index});
         }
 
-        socket.on('update_hand_after_play', function(data) {
-            // Remove the card visually
-            var handDiv = document.getElementById("my-hand");
-            if(handDiv.children[data.card_index]) {
-                handDiv.children[data.card_index].style.display = "none"; 
-            }
+        function submitJokerMove(action, suit) {
+            // Send the joker play with specific instructions
+            // action: 'TAKE' or 'GIVE'
+            // suit: 'H', 'D', 'C', 'S', or 'TRUMP'
+            socket.emit('play_card', {
+                card_index: pendingJokerIndex,
+                joker_action: action,
+                joker_suit: suit
+            });
+            closeJokerModal();
+        }
+
+        function closeJokerModal() {
+            document.getElementById("joker-modal").style.display = "none";
+            pendingJokerIndex = -1;
+        }
+
+        socket.on('hand_update', function(data) {
+            renderHand(data.hand);
             myTurn = false;
             document.getElementById("my-hand").style.borderTop = "none";
         });
 
-        // frontend/index.html <script>
+        socket.on('error_message', function(data) { alert(data.msg); });
 
         socket.on('card_played_on_table', function(data) {
             var area = document.getElementById("played-cards-area");
             
-            // 1. Create the Card Element
-            var cardEl = document.createElement("div");
+            // --- TRACK LEAD SUIT ---
+            // If this is the FIRST card on the table, it sets the Lead Suit
+            if (area.children.length === 0) {
+                // If it's a Joker, use the virtual suit, otherwise use real suit
+                if (data.card.rank === 'Joker') {
+                    currentLeadSuit = data.card.virtual_suit; 
+                } else {
+                    currentLeadSuit = data.card.suit;
+                }
+            }
             
-            // Check if Joker or Normal
+            var cardEl = document.createElement("div");
             if (data.card.rank === 'Joker') {
                 cardEl.className = `card card-joker joker-${data.card.suit.toLowerCase()}`;
             } else {
                 cardEl.className = `card rank-${data.card.rank} suit-${data.card.suit}`;
             }
             
-            // 2. Position Style
-            cardEl.style.position = "absolute";
-            cardEl.style.zIndex = "10"; // Ensure it sits on top of the deck
-            
-            // 3. Calculate Position relative to ME
-            // Find index of the player who threw the card
             var pIndex = allPlayers.findIndex(p => p.sid === data.sid);
-            
-            // Math: If I am index 0, and player 1 throws: (1 - 0 + 4) % 4 = 1 (Left)
             var relIndex = (pIndex - myIndex + 4) % 4; 
 
-            // 4. Apply CSS Transform based on position
-            if (relIndex === 0) { 
-                // ME (Bottom) - Card goes slightly up
-                cardEl.style.bottom = "20px"; 
-                cardEl.style.left = "50%"; 
-                cardEl.style.transform = "translateX(-50%)";
-            } else if (relIndex === 1) { 
-                // LEFT - Card goes slightly right and rotates
-                cardEl.style.left = "20px"; 
-                cardEl.style.top = "50%"; 
-                cardEl.style.transform = "translateY(-50%) rotate(90deg)";
-            } else if (relIndex === 2) { 
-                // TOP - Card goes slightly down
-                cardEl.style.top = "20px"; 
-                cardEl.style.left = "50%"; 
-                cardEl.style.transform = "translateX(-50%)";
-            } else if (relIndex === 3) { 
-                // RIGHT - Card goes slightly left and rotates
-                cardEl.style.right = "20px"; 
-                cardEl.style.top = "50%"; 
-                cardEl.style.transform = "translateY(-50%) rotate(-90deg)";
+            if (relIndex === 0) { // ME
+                cardEl.style.bottom = "140px"; cardEl.style.left = "50%"; cardEl.style.transform = "translateX(-50%)"; cardEl.style.zIndex = "10"; 
+            } else if (relIndex === 1) { // LEFT
+                cardEl.style.left = "140px"; cardEl.style.top = "50%"; cardEl.style.transform = "translateY(-50%) rotate(90deg)"; cardEl.style.zIndex = "5";
+            } else if (relIndex === 2) { // TOP
+                cardEl.style.top = "140px"; cardEl.style.left = "50%"; cardEl.style.transform = "translateX(-50%)"; cardEl.style.zIndex = "1"; 
+            } else if (relIndex === 3) { // RIGHT
+                cardEl.style.right = "140px"; cardEl.style.top = "50%"; cardEl.style.transform = "translateY(-50%) rotate(-90deg)"; cardEl.style.zIndex = "5";
             }
-
-            // 5. Add to the table
             area.appendChild(cardEl);
         });
 
-        socket.on('clear_table', function() {
-            document.getElementById("played-cards-area").innerHTML = "";
-        });
+        socket.on('clear_table', function() { document.getElementById("played-cards-area").innerHTML = ""; });
 
         socket.on('log_message', function(data) {
             var logs = document.getElementById("logs");
@@ -315,8 +405,10 @@
             logs.scrollTop = logs.scrollHeight;
         });
 
-        // --- HELPER FUNCTIONS ---
         function renderHand(hand) {
+            // Update Global Data
+            myHandData = hand; 
+            
             var handDiv = document.getElementById("my-hand");
             handDiv.innerHTML = ""; 
             hand.forEach((card, index) => {
@@ -324,21 +416,20 @@
                 if (card.rank === 'Joker') el.className = `card card-joker joker-${card.suit.toLowerCase()}`;
                 else el.className = `card rank-${card.rank} suit-${card.suit}`;
                 
-                // ADD CLICK HANDLER
                 el.onclick = function() { handleCardClick(card, index); };
-                
                 handDiv.appendChild(el);
             });
+            
+            // If it's currently my turn (e.g. after I played one card and got update),
+            // re-run highlight logic
+            if (myTurn) {
+                highlightValidCards();
+            }
         }
-
+        
         function updateTablePositions() {
             if (myIndex === -1 || allPlayers.length < 2) return;
-            
-            let total = allPlayers.length;
-            let leftIdx = (myIndex + 1) % 4;
-            let topIdx = (myIndex + 2) % 4;
-            let rightIdx = (myIndex + 3) % 4;
-
+            let leftIdx = (myIndex + 1) % 4; let topIdx = (myIndex + 2) % 4; let rightIdx = (myIndex + 3) % 4;
             if (allPlayers[leftIdx]) document.getElementById("name-left").innerText = allPlayers[leftIdx].name;
             if (allPlayers[topIdx]) document.getElementById("name-top").innerText = allPlayers[topIdx].name;
             if (allPlayers[rightIdx]) document.getElementById("name-right").innerText = allPlayers[rightIdx].name;
