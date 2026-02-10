@@ -1,0 +1,55 @@
+body { margin: 0; font-family: Arial, sans-serif; overflow: hidden; background: #222; }
+
+/* TABLE ELEMENTS */
+.player-slot { text-align: center; color: white; text-shadow: 1px 1px 3px black; z-index: 5; }
+.avatar { width: 60px; height: 60px; background: #444; border: 2px solid gold; border-radius: 50%; margin: 0 auto 5px; line-height: 60px; font-weight: bold; }
+
+/* CARDS */
+.card {
+    width: 71px; height: 96px;
+    background-image: url('images/cards_sprite.png');
+    background-size: 1300% 400%; /* 13 Cols, 4 Rows */
+    border-radius: 4px;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+    display: inline-block;
+    margin: 0 5px;
+    transition: transform 0.2s;
+    cursor: pointer;
+}
+.card:hover { transform: translateY(-15px); }
+.card-back {
+    width: 71px; height: 96px;
+    background: repeating-linear-gradient(45deg, #606dbc, #606dbc 10px, #465298 10px, #465298 20px);
+    border: 2px solid white; border-radius: 4px;
+}
+
+/* SPRITE MAPPINGS */
+.suit-C { background-position-y: 0%; }
+.suit-S { background-position-y: 33.33%; }
+.suit-H { background-position-y: 66.66%; }
+.suit-D { background-position-y: 100%; }
+
+.rank-A { background-position-x: 0%; }
+.rank-2 { background-position-x: 8.33%; }
+.rank-3 { background-position-x: 16.66%; }
+.rank-4 { background-position-x: 25%; }
+.rank-5 { background-position-x: 33.33%; }
+.rank-6 { background-position-x: 41.66%; }
+.rank-7 { background-position-x: 50%; }
+.rank-8 { background-position-x: 58.33%; }
+.rank-9 { background-position-x: 66.66%; }
+.rank-10{ background-position-x: 75%; }
+.rank-J { background-position-x: 83.33%; }
+.rank-Q { background-position-x: 91.66%; }
+.rank-K { background-position-x: 100%; }
+
+/* JOKERS */
+.card-joker { background-color: white; background-size: contain; background-repeat: no-repeat; background-position: center; }
+.joker-red { background-image: url('images/joker_red.png') !important; }
+.joker-black { background-image: url('images/joker_black.png') !important; }
+
+/* MODALS */
+.modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
+.modal-content { background-color: #fefefe; padding: 20px; border-radius: 10px; width: 300px; text-align: center; }
+.bid-btn { background-color: gold; border: none; padding: 10px 15px; margin: 5px; cursor: pointer; font-weight: bold; font-size: 16px; border-radius: 5px; }
+.bid-btn:hover { background-color: #ffd700; transform: scale(1.1); }

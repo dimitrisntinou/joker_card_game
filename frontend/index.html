@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Joker Online</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body>
+
+    <div id="login-screen" style="text-align:center; margin-top:100px;">
+        <h1 style="font-size: 60px; color: gold; text-shadow: 2px 2px black;">JOKER ONLINE</h1>
+        <div style="background: rgba(0,0,0,0.7); display:inline-block; padding: 40px; border-radius: 10px;">
+            <input type="text" id="username" placeholder="Enter Nickname" style="padding: 10px; font-size: 16px;">
+            <br><br>
+            <button onclick="joinGame()" style="padding: 10px 20px; font-size: 18px; cursor: pointer; background: gold; border:none; border-radius:5px;">JOIN TABLE</button>
+        </div>
+    </div>
+
+    <div id="game-screen" style="display:none; height: 100vh; background: #2e8b57; overflow: hidden;">
+        
+        <div id="player-top" class="player-slot" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%);">
+            <div class="avatar">Top</div>
+            <div class="player-info"><span id="name-top">Waiting...</span></div>
+        </div>
+        <div id="player-left" class="player-slot" style="position: absolute; top: 50%; left: 20px; transform: translateY(-50%);">
+            <div class="avatar">Left</div>
+            <div class="player-info"><span id="name-left">Waiting...</span></div>
+        </div>
+        <div id="player-right" class="player-slot" style="position: absolute; top: 50%; right: 20px; transform: translateY(-50%);">
+            <div class="avatar">Right</div>
+            <div class="player-info"><span id="name-right">Waiting...</span></div>
+        </div>
+
+        <div id="center-table" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 450px; height: 280px; border: 8px solid rgba(0,0,0,0.3); border-radius: 150px; display: flex; justify-content: center; align-items: center;">
+            
+            <button id="ready-btn" onclick="sendReady()" disabled style="position: absolute; z-index: 10; padding: 15px 30px; font-size: 20px; font-weight: bold; background: #555; color:white; border: 2px solid white; border-radius: 10px; cursor: not-allowed;">
+                WAITING FOR PLAYERS...
+            </button>
+
+            <div id="ace-hunt-display" style="display:none; position: absolute; z-index: 20; text-align: center; color: gold; font-size: 20px; font-weight: bold; text-shadow: 1px 1px black;">
+                <div id="ace-msg">Checking...</div>
+                <div id="ace-card-spot" class="card" style="margin: 10px auto;"></div>
+            </div>
+
+            <div id="deck-pile" class="card-back" style="position: absolute; left: 30px; display:none;"></div>
+            <div id="trump-card-slot" style="position: absolute; right: 30px; transform: rotate(90deg); display:none;"></div>
+            
+            <div id="trump-label" style="position: absolute; bottom: -40px; color: gold; font-weight: bold;"></div>
+        </div>
+
+        <div id="player-bottom" class="player-slot" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 80%;">
+            <div id="my-hand" style="display: flex; justify-content: center; gap: -20px;"></div>
+        </div>
+
+        <div id="logs" style="position: absolute; bottom: 10px; left: 10px; width: 250px; height: 150px; overflow-y: scroll; background: rgba(0,0,0,0.5); color: white; padding: 5px; font-size: 12px; pointer-events: none;"></div>
+    </div>
+
+    <div id="bidding-modal" class="modal">
+        <div class="modal-content">
+            <h3>Your Turn to Bid</h3>
+            <p id="forbidden-msg" style="color: red; display:none;">Forbidden Bid: <span id="forbidden-val"></span></p>
+            <div id="bid-buttons-container"></div>
+        </div>
+    </div>
+
+    <script>
+        var socket = io();
+        var mySid = "";
+        var myIndex = -1;
+        var allPlayers = [];
+        var myTurn = false; // NEW: Tracks if it's my turn to play
+
+        // --- 1. CONNECTION ---
+        socket.on('connect', function() { console.log("Connected"); });
+
+        socket.on('your_id', function(data) { mySid = data.sid; });
+
+        socket.on('update_player_list', function(data) {
+            allPlayers = data.players;
+            myIndex = allPlayers.findIndex(p => p.sid === mySid);
+            updateTablePositions();
+        });
+
+        socket.on('enable_ready_btn', function() {
+            var btn = document.getElementById("ready-btn");
+            btn.disabled = false;
+            btn.innerText = "I AM READY";
+            btn.style.background = "gold";
+            btn.style.color = "black";
+            btn.style.cursor = "pointer";
+        });
+
+        // --- 2. LOBBY ACTIONS ---
+        function joinGame() {
+            var name = document.getElementById("username").value;
+            if(name) {
+                socket.emit('join_game', {username: name});
+                document.getElementById("login-screen").style.display = "none";
+                document.getElementById("game-screen").style.display = "block";
+            }
+        }
+
+        function sendReady() {
+            socket.emit('player_ready');
+            var btn = document.getElementById("ready-btn");
+            btn.innerText = "READY!";
+            btn.style.background = "#4CAF50"; 
+            btn.disabled = true;
+        }
+
+        // --- 3. ACE HUNT ANIMATION ---
+        socket.on('ace_hunt_animation', function(data) {
+            document.getElementById("ready-btn").style.display = "none";
+            document.getElementById("ace-hunt-display").style.display = "block";
+            
+            let sequence = data.sequence;
+            let i = 0;
+            
+            let interval = setInterval(() => {
+                if (i >= sequence.length) {
+                    clearInterval(interval);
+                    return;
+                }
+                
+                let step = sequence[i];
+                let cardDiv = document.getElementById("ace-card-spot");
+                cardDiv.className = `card rank-${step.card.rank} suit-${step.card.suit}`;
+                document.getElementById("ace-msg").innerText = step.name + " gets...";
+
+                if (step.is_ace) {
+                    clearInterval(interval);
+                    document.getElementById("ace-msg").innerHTML = `<span style="color:red; font-size:24px;">ACE! ${step.name} is Dealer!</span>`;
+                    setTimeout(() => {
+                        document.getElementById("ace-hunt-display").style.display = "none";
+                        if (mySid === step.sid) socket.emit('start_real_round');
+                    }, 3000);
+                }
+                i++;
+            }, 1000);
+        });
+
+        // --- 4. GAME ROUNDS & BIDDING ---
+        socket.on('new_round', function(data) {
+            // 1. Show Deck & Trump Slots
+            document.getElementById("deck-pile").style.display = "block";
+            document.getElementById("trump-card-slot").style.display = "block";
+            
+            // 2. Setup the Trump Card Visual (The sideways card)
+            var tSlot = document.getElementById("trump-card-slot");
+            var label = document.getElementById("trump-label");
+            
+            // Helper variables
+            var suitChar = data.trump.suit; // "H", "D", "C", "S" or "NT"
+            var symbol = "";
+            var color = "white";
+
+            // 3. Logic to pick Symbol and Color
+            if (suitChar === 'H') { symbol = "♥"; color = "#ff5555"; } // Red
+            else if (suitChar === 'D') { symbol = "♦"; color = "#ff5555"; } // Red
+            else if (suitChar === 'C') { symbol = "♣"; color = "black"; }
+            else if (suitChar === 'S') { symbol = "♠"; color = "black"; }
+            
+            // 4. Update the Label (Text + Symbol)
+            if (data.trump.rank === 'Joker') {
+                tSlot.className = `card card-joker joker-${data.trump.suit.toLowerCase()}`;
+                label.innerHTML = "NO TRUMP (Joker)";
+                label.style.color = "gold";
+            } else if (suitChar === 'NT') {
+                tSlot.className = "card card-back"; // Or hidden
+                label.innerHTML = "NO TRUMP";
+                label.style.color = "gold";
+            } else {
+                // STANDARD TRUMP: Show "TRUMP ♥"
+                tSlot.className = `card rank-${data.trump.rank} suit-${data.trump.suit}`;
+                label.innerHTML = `TRUMP <span style="color: ${color}; font-size: 28px;">${symbol}</span>`;
+                label.style.color = "white";
+            }
+
+            // 5. Render your Hand
+            renderHand(data.hand);
+        });
+
+        socket.on('your_turn_to_bid', function(data) {
+            var container = document.getElementById("bid-buttons-container");
+            container.innerHTML = ""; 
+            
+            var handSize = document.getElementById("my-hand").children.length;
+            var forbidden = data.forbidden;
+
+            if (forbidden !== null) {
+                document.getElementById("forbidden-msg").style.display = "block";
+                document.getElementById("forbidden-val").innerText = forbidden;
+            } else {
+                document.getElementById("forbidden-msg").style.display = "none";
+            }
+
+            for (let i = 0; i <= handSize; i++) {
+                let btn = document.createElement("button");
+                btn.innerText = i;
+                btn.className = "bid-btn";
+                
+                if (i === forbidden) {
+                    btn.disabled = true;
+                    btn.style.background = "#555";
+                    btn.style.cursor = "not-allowed";
+                } else {
+                    btn.onclick = function() { 
+                        socket.emit('player_bid', {amount: i});
+                        document.getElementById("bidding-modal").style.display = "none";
+                    };
+                }
+                container.appendChild(btn);
+            }
+            document.getElementById("bidding-modal").style.display = "flex";
+        });
+
+        // --- 5. CARD PLAYING LOGIC (NEW!) ---
+
+        socket.on('your_turn_to_play', function() {
+            myTurn = true;
+            document.getElementById("logs").innerHTML += "<div style='color:lime; font-weight:bold;'>YOUR TURN TO PLAY!</div>";
+            document.getElementById("my-hand").style.borderTop = "4px solid lime";
+        });
+
+        socket.on('update_turn_indicator', function(data) {
+            if(data.sid !== mySid) {
+                myTurn = false;
+                document.getElementById("my-hand").style.borderTop = "none";
+            }
+            document.getElementById("logs").innerHTML += `<div>${data.name}'s turn...</div>`;
+            var logs = document.getElementById("logs");
+            logs.scrollTop = logs.scrollHeight;
+        });
+
+        function handleCardClick(card, index) {
+            if (!myTurn) {
+                alert("Wait for your turn!");
+                return;
+            }
+            // Send move to server
+            socket.emit('play_card', {card_index: index});
+        }
+
+        socket.on('update_hand_after_play', function(data) {
+            // Remove the card visually
+            var handDiv = document.getElementById("my-hand");
+            if(handDiv.children[data.card_index]) {
+                handDiv.children[data.card_index].style.display = "none"; 
+            }
+            myTurn = false;
+            document.getElementById("my-hand").style.borderTop = "none";
+        });
+
+        // frontend/index.html <script>
+
+        socket.on('card_played_on_table', function(data) {
+            var area = document.getElementById("played-cards-area");
+            
+            // 1. Create the Card Element
+            var cardEl = document.createElement("div");
+            
+            // Check if Joker or Normal
+            if (data.card.rank === 'Joker') {
+                cardEl.className = `card card-joker joker-${data.card.suit.toLowerCase()}`;
+            } else {
+                cardEl.className = `card rank-${data.card.rank} suit-${data.card.suit}`;
+            }
+            
+            // 2. Position Style
+            cardEl.style.position = "absolute";
+            cardEl.style.zIndex = "10"; // Ensure it sits on top of the deck
+            
+            // 3. Calculate Position relative to ME
+            // Find index of the player who threw the card
+            var pIndex = allPlayers.findIndex(p => p.sid === data.sid);
+            
+            // Math: If I am index 0, and player 1 throws: (1 - 0 + 4) % 4 = 1 (Left)
+            var relIndex = (pIndex - myIndex + 4) % 4; 
+
+            // 4. Apply CSS Transform based on position
+            if (relIndex === 0) { 
+                // ME (Bottom) - Card goes slightly up
+                cardEl.style.bottom = "20px"; 
+                cardEl.style.left = "50%"; 
+                cardEl.style.transform = "translateX(-50%)";
+            } else if (relIndex === 1) { 
+                // LEFT - Card goes slightly right and rotates
+                cardEl.style.left = "20px"; 
+                cardEl.style.top = "50%"; 
+                cardEl.style.transform = "translateY(-50%) rotate(90deg)";
+            } else if (relIndex === 2) { 
+                // TOP - Card goes slightly down
+                cardEl.style.top = "20px"; 
+                cardEl.style.left = "50%"; 
+                cardEl.style.transform = "translateX(-50%)";
+            } else if (relIndex === 3) { 
+                // RIGHT - Card goes slightly left and rotates
+                cardEl.style.right = "20px"; 
+                cardEl.style.top = "50%"; 
+                cardEl.style.transform = "translateY(-50%) rotate(-90deg)";
+            }
+
+            // 5. Add to the table
+            area.appendChild(cardEl);
+        });
+
+        socket.on('clear_table', function() {
+            document.getElementById("played-cards-area").innerHTML = "";
+        });
+
+        socket.on('log_message', function(data) {
+            var logs = document.getElementById("logs");
+            logs.innerHTML += "<div>" + data.msg + "</div>";
+            logs.scrollTop = logs.scrollHeight;
+        });
+
+        // --- HELPER FUNCTIONS ---
+        function renderHand(hand) {
+            var handDiv = document.getElementById("my-hand");
+            handDiv.innerHTML = ""; 
+            hand.forEach((card, index) => {
+                var el = document.createElement("div");
+                if (card.rank === 'Joker') el.className = `card card-joker joker-${card.suit.toLowerCase()}`;
+                else el.className = `card rank-${card.rank} suit-${card.suit}`;
+                
+                // ADD CLICK HANDLER
+                el.onclick = function() { handleCardClick(card, index); };
+                
+                handDiv.appendChild(el);
+            });
+        }
+
+        function updateTablePositions() {
+            if (myIndex === -1 || allPlayers.length < 2) return;
+            
+            let total = allPlayers.length;
+            let leftIdx = (myIndex + 1) % 4;
+            let topIdx = (myIndex + 2) % 4;
+            let rightIdx = (myIndex + 3) % 4;
+
+            if (allPlayers[leftIdx]) document.getElementById("name-left").innerText = allPlayers[leftIdx].name;
+            if (allPlayers[topIdx]) document.getElementById("name-top").innerText = allPlayers[topIdx].name;
+            if (allPlayers[rightIdx]) document.getElementById("name-right").innerText = allPlayers[rightIdx].name;
+        }
+    </script>
+</body>
+</html>
