@@ -16,6 +16,25 @@ game = JokerGame()
 def index():
     return render_template('index.html')
 
+def broadcast_scores():
+    # Build a list of scores for all players
+    score_data = []
+    for sid in game.turn_order:
+        bid = game.bids.get(sid, 0) # Default 0 if not bid yet
+        tricks = game.tricks_won.get(sid, 0)
+        has_bid = (sid in game.bids)
+        total_score = game.players[sid]['score']
+        
+        score_data.append({
+            'sid': sid,
+            'bid': bid,
+            'tricks': tricks,
+            'has_bid': has_bid,
+            'total_score': total_score
+        })
+        
+    emit('update_scores', {'scores': score_data}, broadcast=True)
+
 @socketio.on('join_game')
 def handle_join(data):
     username = data['username']
@@ -38,6 +57,7 @@ def handle_ready():
 def handle_start_round():
     if game.game_phase == "BIDDING": return
     first_bidder_sid = game.start_new_round()
+    broadcast_scores()
     for pid in game.players:
         emit('new_round', {
             'hand': game.players[pid]['hand'],
@@ -60,6 +80,8 @@ def handle_bid(data):
 
     name = game.players[sid]['name']
     emit('log_message', {'msg': f"{name} bid {amount}"}, broadcast=True)
+
+    broadcast_scores()
     
     if result is True: 
         emit('log_message', {'msg': "Bids closed! Game On!"}, broadcast=True)
@@ -108,10 +130,14 @@ def handle_play_card(data):
         if is_round_over:
             game.calculate_round_scores()
             broadcast_scores()
+            
             emit('log_message', {'msg': f"Round {game.round_number} Finished!"}, broadcast=True)
+
             if game.round_number < 9: game.round_number += 1
             socketio.sleep(1)
             first_bidder_sid = game.start_new_round()
+            broadcast_scores()
+            
             for pid in game.players:
                 emit('new_round', {'hand': game.players[pid]['hand'], 'trump': game.trump_card, 'round_number': game.round_number, 'max_bid': game.cards_to_deal}, room=pid)
             emit('your_turn_to_bid', {'forbidden': game.get_forbidden_bid(first_bidder_sid)}, room=first_bidder_sid)
@@ -128,25 +154,6 @@ def handle_play_card(data):
         # Pass is_leader=False (they are following)
         emit('your_turn_to_play', {'is_leader': False}, room=next_sid)
 
-
-def broadcast_scores():
-    # Build a list of scores for all players
-    score_data = []
-    for sid in game.turn_order:
-        bid = game.bids.get(sid, 0) # Default 0 if not bid yet
-        tricks = game.tricks_won.get(sid, 0)
-        has_bid = (sid in game.bids)
-        total_score = game.players[sid]['score']
-        
-        score_data.append({
-            'sid': sid,
-            'bid': bid,
-            'tricks': tricks,
-            'has_bid': has_bid,
-            'total_score': total_score
-        })
-        
-    emit('update_scores', {'scores': score_data}, broadcast=True)
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, port=5000)

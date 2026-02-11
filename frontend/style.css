@@ -1,10 +1,52 @@
-body { margin: 0; font-family: Arial, sans-serif; overflow: hidden; background: #222; }
+/* frontend/style.css */
 
-/* TABLE ELEMENTS */
+/* 1. GLOBAL RESET */
+html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    overflow: hidden; /* Prevent scrollbars */
+    background: #222;
+}
+
+/* 2. LOGIN SCREEN (Forces it on top) */
+#login-screen {
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100vw; 
+    height: 100vh;
+    background: #222; 
+    z-index: 9999; /* Highest priority */
+    display: flex; 
+    flex-direction: column;
+    justify-content: center; 
+    align-items: center;
+}
+
+/* 3. GAME SCREEN (Hidden initially, shown by JS) */
+#game-screen {
+    width: 100vw; 
+    height: 100vh;
+    background: #2e8b57;
+    overflow: hidden;
+    /* Flexbox used to center the Game Scaler */
+    align-items: center; 
+    justify-content: center;
+}
+
+/* --- TABLE ELEMENTS --- */
 .player-slot { text-align: center; color: white; text-shadow: 1px 1px 3px black; z-index: 5; }
 .avatar { width: 60px; height: 60px; background: #444; border: 2px solid gold; border-radius: 50%; margin: 0 auto 5px; line-height: 60px; font-weight: bold; }
 
-/* CARDS */
+#center-table {
+    position: absolute;
+    z-index: 1; 
+}
+
+/* --- CARDS --- */
 .card {
     width: 71px; height: 96px;
     background-image: url('images/cards_sprite.png');
@@ -17,26 +59,23 @@ body { margin: 0; font-family: Arial, sans-serif; overflow: hidden; background: 
     cursor: pointer;
 }
 
-.card:hover {
-    transform: none; /* Disable flying for everyone by default */
-}
+/* Hover Effects */
+.card:hover { transform: none; } /* Default: No effect */
 
-/* 2. ADD hover ONLY for valid cards */
 .card.valid-card {
     cursor: pointer;
     transition: transform 0.2s ease-out;
     filter: brightness(100%);
 }
-
 .card.valid-card:hover {
-    transform: translateY(-20px) scale(1.1); /* Fly up and grow slightly */
-    box-shadow: 0 0 15px gold; /* Add a glow */
+    transform: translateY(-20px) scale(1.1);
+    box-shadow: 0 0 15px gold;
     z-index: 100;
 }
 
 .card.invalid-card {
     cursor: not-allowed;
-    filter: brightness(60%) grayscale(80%); /* Darker and grey */
+    filter: brightness(60%) grayscale(80%);
     opacity: 0.8;
 }
 
@@ -46,7 +85,7 @@ body { margin: 0; font-family: Arial, sans-serif; overflow: hidden; background: 
     border: 2px solid white; border-radius: 4px;
 }
 
-/* SPRITE MAPPINGS */
+/* --- SPRITE MAPPINGS --- */
 .suit-C { background-position-y: 0%; }
 .suit-S { background-position-y: 33.33%; }
 .suit-H { background-position-y: 66.66%; }
@@ -71,18 +110,7 @@ body { margin: 0; font-family: Arial, sans-serif; overflow: hidden; background: 
 .joker-red { background-image: url('images/joker_red.png') !important; }
 .joker-black { background-image: url('images/joker_black.png') !important; }
 
-/* MODALS */
-.modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
-.modal-content { background-color: #fefefe; padding: 20px; border-radius: 10px; width: 300px; text-align: center; }
-.bid-btn { background-color: gold; border: none; padding: 10px 15px; margin: 5px; cursor: pointer; font-weight: bold; font-size: 16px; border-radius: 5px; }
-.bid-btn:hover { background-color: #ffd700; transform: scale(1.1); }
-
-#center-table {
-    position: absolute;
-    /* Ensure the table itself is positioned correctly */
-    z-index: 1; 
-}
-
+/* --- PLAYED AREA --- */
 #played-cards-area {
     position: absolute;
     top: 0; left: 0;
@@ -93,36 +121,38 @@ body { margin: 0; font-family: Arial, sans-serif; overflow: hidden; background: 
 
 #played-cards-area .card {
     position: absolute;
-    width: 71px;  /* Force normal width */
-    height: 96px; /* Force normal height */
-    transform: translate(-50%, -50%); /* Perfect Center alignment */
+    width: 71px; height: 96px;
+    transform: translate(-50%, -50%);
     transition: all 0.5s ease-out;
     box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
-    z-index: auto; /* Let them stack naturally (last played is on top) */
+    z-index: auto;
 }
 
-#ace-hunt-display {
-    /* Ensure this is higher than the table background */
-    z-index: 50; 
+#ace-hunt-display { z-index: 50; }
+
+/* --- MODALS --- */
+.modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
+.modal-content { background-color: #fefefe; padding: 20px; border-radius: 10px; width: 300px; text-align: center; }
+.bid-btn { background-color: gold; border: none; padding: 10px 15px; margin: 5px; cursor: pointer; font-weight: bold; font-size: 16px; border-radius: 5px; }
+.bid-btn:hover { background-color: #ffd700; transform: scale(1.1); }
+
+/* --- SCORES & POINTS --- */
+.points-label {
+    font-size: 18px;
+    color: gold;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px black;
+    margin-bottom: 5px;
 }
 
 .score-text {
-    font-size: 28px; /* Slightly bigger */
+    font-size: 28px;
     font-weight: bold;
     text-shadow: 2px 2px 4px black;
     letter-spacing: 2px;
     margin-top: 5px;
 }
 
-.points-label {
-    font-size: 18px;
-    color: gold;
-    font-weight: bold;
-    text-shadow: 1px 1px 2px black;
-    margin-bottom: 5px; /* Space between points and avatar */
-}
-
-/* Color Classes (We will toggle these with JS) */
 .score-white { color: white; }
-.score-green { color: #00ff00; } /* Bright Green */
-.score-red   { color: #ff3333; } /* Bright Red */
+.score-green { color: #00ff00; }
+.score-red   { color: #ff3333; }
