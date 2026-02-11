@@ -35,14 +35,32 @@
     </div>
 
     <div id="game-screen" style="display:none; height: 100vh; background: #2e8b57; overflow: hidden;">
-        <div id="player-top" class="player-slot" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%);">
-            <div class="avatar">Top</div><div class="player-info"><span id="name-top">Waiting...</span></div>
+        
+        <div id="player-top" class="player-slot" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 200px;">
+            <div id="points-top" class="points-label">Points: 0</div>
+            
+            <div class="avatar">Top</div>
+            <div class="player-info"><span id="name-top">Waiting...</span></div>
+            
+            <div id="bid-score-top" class="score-text"></div>
         </div>
-        <div id="player-left" class="player-slot" style="position: absolute; top: 50%; left: 20px; transform: translateY(-50%);">
-            <div class="avatar">Left</div><div class="player-info"><span id="name-left">Waiting...</span></div>
+
+        <div id="player-left" class="player-slot" style="position: absolute; top: 50%; left: 20px; transform: translateY(-50%); width: 150px;">
+            <div id="points-left" class="points-label">Points: 0</div>
+            
+            <div class="avatar">Left</div>
+            <div class="player-info"><span id="name-left">Waiting...</span></div>
+            
+            <div id="bid-score-left" class="score-text"></div>
         </div>
-        <div id="player-right" class="player-slot" style="position: absolute; top: 50%; right: 20px; transform: translateY(-50%);">
-            <div class="avatar">Right</div><div class="player-info"><span id="name-right">Waiting...</span></div>
+
+        <div id="player-right" class="player-slot" style="position: absolute; top: 50%; right: 20px; transform: translateY(-50%); width: 150px;">
+            <div id="points-right" class="points-label">Points: 0</div>
+            
+            <div class="avatar">Right</div>
+            <div class="player-info"><span id="name-right">Waiting...</span></div>
+            
+            <div id="bid-score-right" class="score-text"></div>
         </div>
 
         <div id="center-table" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 800px; height: 450px; border: 12px solid rgba(0,0,0,0.3); border-radius: 200px; display: flex; justify-content: center; align-items: center;">
@@ -56,9 +74,17 @@
             <div id="trump-label" style="position: absolute; bottom: -40px; color: gold; font-weight: bold;"></div>
         </div>
 
-        <div id="player-bottom" class="player-slot" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 80%;">
-            <div id="my-hand" style="display: flex; justify-content: center; gap: -20px;"></div>
+        <div id="player-bottom" class="player-slot" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 800px;">
+            
+            <div style="display: flex; justify-content: center; align-items: center;">
+                <div id="my-hand" style="display: flex; justify-content: center; gap: -20px;"></div>
+                
+                <div id="points-bottom" class="points-label" style="margin-left: 20px; white-space: nowrap;">Points: 0</div>
+            </div>
+
+            <div id="bid-score-bottom" class="score-text" style="margin-top: 5px;"></div>
         </div>
+
         <div id="logs" style="position: absolute; bottom: 10px; left: 10px; width: 250px; height: 150px; overflow-y: scroll; background: rgba(0,0,0,0.5); color: white; padding: 5px; font-size: 12px; pointer-events: none;"></div>
     </div>
 
@@ -426,7 +452,7 @@
                 highlightValidCards();
             }
         }
-        
+
         function updateTablePositions() {
             if (myIndex === -1 || allPlayers.length < 2) return;
             let leftIdx = (myIndex + 1) % 4; let topIdx = (myIndex + 2) % 4; let rightIdx = (myIndex + 3) % 4;
@@ -434,6 +460,47 @@
             if (allPlayers[topIdx]) document.getElementById("name-top").innerText = allPlayers[topIdx].name;
             if (allPlayers[rightIdx]) document.getElementById("name-right").innerText = allPlayers[rightIdx].name;
         }
+
+        socket.on('update_scores', function(data) {
+            data.scores.forEach(playerData => {
+                var pIndex = allPlayers.findIndex(p => p.sid === playerData.sid);
+                if (pIndex === -1) return;
+
+                var relIndex = (pIndex - myIndex + 4) % 4; 
+                var pos = "";
+
+                if (relIndex === 0) pos = "bottom";
+                else if (relIndex === 1) pos = "left";
+                else if (relIndex === 2) pos = "top";
+                else if (relIndex === 3) pos = "right";
+
+                // 1. UPDATE TOTAL POINTS (Points: 200)
+                var pointsEl = document.getElementById("points-" + pos);
+                if (pointsEl) {
+                    pointsEl.innerText = "Points: " + playerData.total_score;
+                }
+
+                // 2. UPDATE ROUND STATUS (1/3)
+                var bidEl = document.getElementById("bid-score-" + pos);
+                if (bidEl) {
+                    if (playerData.has_bid) {
+                        var won = playerData.tricks;
+                        var bid = playerData.bid;
+                        
+                        bidEl.innerText = `${won}/${bid}`;
+                        
+                        // Color Logic
+                        bidEl.className = "score-text"; 
+                        if (won < bid) bidEl.classList.add("score-red");
+                        else if (won === bid) bidEl.classList.add("score-green");
+                        else bidEl.classList.add("score-white");
+                    } else {
+                        bidEl.innerText = "";
+                    }
+                }
+            });
+        });
+
     </script>
 </body>
 </html>

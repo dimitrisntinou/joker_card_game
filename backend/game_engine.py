@@ -18,7 +18,7 @@ class JokerGame:
         self.dealer_index = -1  
         self.current_bidder_index = 0
         self.current_trick_cards = []
-        self.lead_override_suit = None # Used when Joker leads to define the suit
+        self.lead_override_suit = None 
 
     def add_player(self, sid, name):
         if len(self.players) < 4:
@@ -121,93 +121,63 @@ class JokerGame:
             self.current_bidder_index = (self.dealer_index + 1) % 4
         return True, is_bidding_over
 
-    # --- ADVANCED RULES: JOKER & STRICT FOLLOW ---
     def is_move_valid(self, sid, card_to_play):
-        # Always allow Joker
-        if card_to_play['rank'] == 'Joker':
-            return True, ""
+        if card_to_play['rank'] == 'Joker': return True, ""
+        if not self.current_trick_cards: return True, ""
 
-        # First card? Anything goes
-        if not self.current_trick_cards:
-            return True, ""
-
-        # Determine Lead Suit
-        # If Lead was Joker, we use the "lead_override_suit" set by the joker player
-        if self.lead_override_suit:
-            lead_suit = self.lead_override_suit
-        else:
-            lead_suit = self.current_trick_cards[0]['card']['suit']
+        if self.lead_override_suit: lead_suit = self.lead_override_suit
+        else: lead_suit = self.current_trick_cards[0]['card']['suit']
 
         played_suit = card_to_play['suit']
         hand = self.players[sid]['hand']
         
-        # Check holdings (Exclude Joker from suit check)
         has_lead_suit = any(c['suit'] == lead_suit and c['rank'] != 'Joker' for c in hand)
-        
         has_trump = False
         if self.trump_suit != "NT":
             has_trump = any(c['suit'] == self.trump_suit and c['rank'] != 'Joker' for c in hand)
 
-        # 1. Must Follow Suit
         if has_lead_suit:
             if played_suit == lead_suit: return True, ""
             return False, f"You must play {lead_suit}!"
 
-        # 2. Must Trump (Kozer) if no suit
         if has_trump:
             if played_suit == self.trump_suit: return True, ""
             return False, f"You must play Kozer ({self.trump_suit})!"
 
-        # 3. Free Play
         return True, ""
 
     def play_card(self, sid, card_index, joker_data=None):
-        if sid != self.get_current_bidder_id():
-            return False, "Not your turn!"
+        if sid != self.get_current_bidder_id(): return False, "Not your turn!"
             
         hand = self.players[sid]['hand']
         if card_index >= len(hand): return False, "Invalid card"
-            
+        
         card_to_play = hand[card_index]
-
-        # Validate
         valid, msg = self.is_move_valid(sid, card_to_play)
         if not valid: return False, msg
         
         played_card = hand.pop(card_index)
         
-        # --- JOKER TRANSFORMATION ---
         if played_card['rank'] == 'Joker' and joker_data:
-            action = joker_data.get('joker_action') # TAKE or GIVE
-            suit_req = joker_data.get('joker_suit') # H, D, C, S, TRUMP
-            
-            # Resolve "TRUMP" selection to actual suit
+            action = joker_data.get('joker_action')
+            suit_req = joker_data.get('joker_suit')
             if suit_req == 'TRUMP':
-                suit_req = self.trump_suit if self.trump_suit != 'NT' else 'H' # Default if NT?
+                suit_req = self.trump_suit if self.trump_suit != 'NT' else 'H' 
             
-            # Save visual info
             played_card['virtual_action'] = action
             played_card['virtual_suit'] = suit_req
             
-            # JOKER LOGIC
             if not self.current_trick_cards:
-                # LEAD JOKER
                 self.lead_override_suit = suit_req
-                if action == 'TAKE':
-                    played_card['rank_value'] = 999 # Highest Suit
-                else:
-                    played_card['rank_value'] = 0   # Lowest Suit
+                played_card['rank_value'] = 999 if action == 'TAKE' else 0
             else:
-                # FOLLOW JOKER
                 if action == 'TAKE':
-                    played_card['virtual_suit'] = self.trump_suit # Acts as highest Trump
-                    # Second Joker Rule: If J1 is 1000, J2 is 1001
+                    played_card['virtual_suit'] = self.trump_suit 
                     played_card['rank_value'] = 1000 
                 else:
                     played_card['virtual_suit'] = self.current_trick_cards[0]['card']['suit']
-                    played_card['rank_value'] = -1 # Discard
+                    played_card['rank_value'] = -1
         else:
-            # Normal Card Value
             played_card['rank_value'] = self.get_rank_value(played_card['rank'])
             played_card['virtual_suit'] = played_card['suit']
 
@@ -225,15 +195,53 @@ class JokerGame:
             self.tricks_played_in_round += 1
             
             self.current_trick_cards = [] 
-            self.lead_override_suit = None # Reset Joker lead rule
+            self.lead_override_suit = None 
             
             is_round_over = (self.tricks_played_in_round == self.cards_to_deal)
             self.current_bidder_index = self.turn_order.index(winner['sid'])
+            
             return {'winner': winner, 'round_over': is_round_over}
         return None
 
+    # --- NEW: SCORE CALCULATION LOGIC ---
+    def calculate_round_scores(self):
+        round_log = {}
+        for sid in self.players:
+            bid = self.bids.get(sid, 0)
+            won = self.tricks_won.get(sid, 0)
+            round_score = 0
+            
+            # 1. GRAND SLAM (ALL CARDS)
+            if bid == self.cards_to_deal:
+                if won == bid:
+                    # Success: 4/4 -> 400
+                    round_score = bid * 100
+                else:
+                    # Fail: 3/4 -> -400
+                    round_score = -(bid * 100)
+            
+            # 2. UNDER BID (FAIL)
+            elif won < bid:
+                # 2/3 -> -200
+                round_score = -((bid + 1) * 50)
+                
+            # 3. SUCCESS (EXACT)
+            elif won == bid:
+                # 3/3 -> 200
+                round_score = (bid + 1) * 50
+                
+            # 4. OVER BID (MORE)
+            elif won > bid:
+                # 4/2 -> 40
+                round_score = won * 10
+            
+            # Update Total Score
+            self.players[sid]['score'] += round_score
+            round_log[sid] = round_score
+            
+        return round_log
+
     def resolve_winner(self, trick):
-        # Determine actual lead suit (Normal or Joker-forced)
         first_card = trick[0]['card']
         if first_card['rank'] == 'Joker':
             lead_suit = first_card['virtual_suit']
@@ -248,45 +256,25 @@ class JokerGame:
             c_card = challenger['card']
             b_card = best_play['card']
             
-            # --- JOKER VS JOKER (Second beats First) ---
             if c_card['rank'] == 'Joker' and b_card['rank'] == 'Joker':
-                # If both are 'TAKE', second wins (Rank 1000 vs 1000 -> we need tiebreak logic or explicit check)
-                # Let's say Challenger takes it if they want it
-                if c_card['virtual_action'] == 'TAKE':
-                    best_play = challenger
+                if c_card['virtual_action'] == 'TAKE': best_play = challenger
                 continue
 
-            # --- TRUMP LOGIC ---
-            # Use 'virtual_suit' for jokers, 'suit' for normal
             c_suit = c_card.get('virtual_suit', c_card['suit'])
             b_suit = b_card.get('virtual_suit', b_card['suit'])
-            
             c_is_trump = (c_suit == trump_suit)
             b_is_trump = (b_suit == trump_suit)
             
-            # 1. Trump beats Non-Trump
-            if c_is_trump and not b_is_trump:
-                best_play = challenger
-                continue
-            
-            # 2. Both Trump -> Compare Rank
-            if c_is_trump and b_is_trump:
-                # Use rank_value (Joker=1000/999, Normal=0-8)
-                if c_card['rank_value'] > b_card['rank_value']:
-                    best_play = challenger
-                continue
-            
-            # --- FOLLOW SUIT LOGIC ---
-            if not b_is_trump and c_suit == lead_suit:
-                if b_suit != lead_suit:
-                     best_play = challenger
-                elif c_card['rank_value'] > b_card['rank_value']:
-                     best_play = challenger
-                     
+            if c_is_trump and not b_is_trump: best_play = challenger
+            elif c_is_trump and b_is_trump:
+                if c_card['rank_value'] > b_card['rank_value']: best_play = challenger
+            elif not b_is_trump and c_suit == lead_suit:
+                if b_suit != lead_suit: best_play = challenger
+                elif c_card['rank_value'] > b_card['rank_value']: best_play = challenger
         return best_play
 
     def get_rank_value(self, rank):
         order = ['6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
         if rank == 'Joker': return 99 
-        if rank in order: return order.index(rank) + 1 # 1 to 9
+        if rank in order: return order.index(rank) + 1 
         return 0

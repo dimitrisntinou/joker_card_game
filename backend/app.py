@@ -63,6 +63,7 @@ def handle_bid(data):
     
     if result is True: 
         emit('log_message', {'msg': "Bids closed! Game On!"}, broadcast=True)
+        broadcast_scores()
         first_player_sid = game.get_current_bidder_id()
         first_name = game.players[first_player_sid]['name']
         emit('update_turn_indicator', {'sid': first_player_sid, 'name': first_name}, broadcast=True)
@@ -99,11 +100,14 @@ def handle_play_card(data):
     if result_data:
         winner = result_data['winner']
         is_round_over = result_data['round_over']
+        broadcast_scores()
         emit('log_message', {'msg': f"--- {winner['name']} wins! ---"}, broadcast=True)
         socketio.sleep(1) 
         emit('clear_table', {}, broadcast=True)
         
         if is_round_over:
+            game.calculate_round_scores()
+            broadcast_scores()
             emit('log_message', {'msg': f"Round {game.round_number} Finished!"}, broadcast=True)
             if game.round_number < 9: game.round_number += 1
             socketio.sleep(1)
@@ -123,6 +127,26 @@ def handle_play_card(data):
         emit('update_turn_indicator', {'sid': next_sid, 'name': next_name}, broadcast=True)
         # Pass is_leader=False (they are following)
         emit('your_turn_to_play', {'is_leader': False}, room=next_sid)
+
+
+def broadcast_scores():
+    # Build a list of scores for all players
+    score_data = []
+    for sid in game.turn_order:
+        bid = game.bids.get(sid, 0) # Default 0 if not bid yet
+        tricks = game.tricks_won.get(sid, 0)
+        has_bid = (sid in game.bids)
+        total_score = game.players[sid]['score']
+        
+        score_data.append({
+            'sid': sid,
+            'bid': bid,
+            'tricks': tricks,
+            'has_bid': has_bid,
+            'total_score': total_score
+        })
+        
+    emit('update_scores', {'scores': score_data}, broadcast=True)
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, port=5000)
