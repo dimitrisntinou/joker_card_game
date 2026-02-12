@@ -8,13 +8,19 @@ class JokerGame:
         self.ready_players = set()
         
         self.deck = []
-        self.cards_to_deal = 1
         self.trump_card = None
         self.trump_suit = None
         
         self.game_phase = "WAITING" 
         self.turn_order = []    
-        self.round_number = 1   
+        
+        # --- ROUND SCHEDULE ---
+        # 1-8, then four 9s (Kings), then 8-1
+        self.round_schedule = [1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+        self.current_round_index = -1
+        self.round_number = 0
+        self.cards_to_deal = 0
+        
         self.dealer_index = -1  
         self.current_bidder_index = 0
         self.current_trick_cards = []
@@ -65,19 +71,39 @@ class JokerGame:
                 current_idx = (current_idx + 1) % 4
         return ace_hunt_log
 
+    # --- ROUND START ---
     def start_new_round(self):
-        if self.round_number > 1:
-            self.dealer_index = (self.dealer_index + 1) % 4
-        self.current_bidder_index = (self.dealer_index + 1) % 4
+        self.current_round_index += 1
+        if self.current_round_index >= len(self.round_schedule):
+            return "GAME_OVER" 
+            
+        self.round_number = self.current_round_index + 1
+        self.cards_to_deal = self.round_schedule[self.current_round_index]
+        
+        self.dealer_index = (self.dealer_index + 1) % 4
+        self.current_bidder_index = (self.dealer_index + 1) % 4 
+        leader_sid = self.turn_order[self.current_bidder_index]
+        
         self.create_deck()
         self.bids = {}
         self.tricks_won = {sid: 0 for sid in self.players}
-        self.game_phase = "BIDDING"
         self.current_trick_cards = []
         self.tricks_played_in_round = 0 
-        self.cards_to_deal = self.round_number 
         self.lead_override_suit = None
         
+        for sid in self.players: self.players[sid]["hand"] = []
+
+        # --- 9 CARDS (DECLARATION) ---
+        if self.cards_to_deal == 9:
+            self.game_phase = "DECLARING"
+            hand = []
+            for _ in range(3): hand.append(self.deck.pop())
+            hand.sort(key=lambda x: (x['rank'] == 'Joker', x['suit'], x['rank']))
+            self.players[leader_sid]["hand"] = hand
+            return "DECLARING" 
+        
+        # --- NORMAL ROUND ---
+        self.game_phase = "BIDDING"
         for sid in self.players:
             hand = []
             for _ in range(self.cards_to_deal):
@@ -94,7 +120,37 @@ class JokerGame:
         else:
             self.trump_card = {"rank": "No", "suit": "Trump", "value": "NT"}
             self.trump_suit = "NT"
-        return self.get_current_bidder_id()
+            
+        return "BIDDING"
+
+    # --- UPDATED: VISUALS FOR DECLARATION ---
+    def set_trump_and_deal(self, suit_choice):
+        self.trump_suit = suit_choice
+        
+        if suit_choice == 'NT':
+            # VISUAL FIX: Show Joker for NT
+            self.trump_card = {"rank": "Joker", "suit": "Red", "value": "NO TRUMP"}
+        else:
+            # VISUAL FIX: Show Ace of that suit
+            self.trump_card = {"rank": "A", "suit": suit_choice, "value": f"Trump: {suit_choice}"}
+
+        leader_sid = self.get_current_bidder_id()
+        
+        # Complete dealing
+        for _ in range(6):
+            if self.deck: self.players[leader_sid]["hand"].append(self.deck.pop())
+        self.players[leader_sid]["hand"].sort(key=lambda x: (x['rank'] == 'Joker', x['suit'], x['rank']))
+        
+        for sid in self.players:
+            if sid == leader_sid: continue
+            hand = []
+            for _ in range(9):
+                if self.deck: hand.append(self.deck.pop())
+            hand.sort(key=lambda x: (x['rank'] == 'Joker', x['suit'], x['rank']))
+            self.players[sid]["hand"] = hand
+            
+        self.game_phase = "BIDDING"
+        return True
 
     def get_current_bidder_id(self):
         if not self.turn_order: return None
@@ -108,11 +164,9 @@ class JokerGame:
         return forbidden if forbidden >= 0 else None
 
     def process_bid(self, player_sid, amount):
-        if player_sid != self.get_current_bidder_id():
-            return False, "Not your turn!"
+        if player_sid != self.get_current_bidder_id(): return False, "Not your turn!"
         forbidden = self.get_forbidden_bid(player_sid)
-        if forbidden is not None and amount == forbidden:
-            return False, "Forbidden Bid!"
+        if forbidden is not None and amount == forbidden: return False, "Forbidden Bid!"
         self.bids[player_sid] = amount
         self.current_bidder_index = (self.current_bidder_index + 1) % 4
         is_bidding_over = (len(self.bids) == 4)
@@ -125,20 +179,33 @@ class JokerGame:
         if card_to_play['rank'] == 'Joker': return True, ""
         if not self.current_trick_cards: return True, ""
 
-        if self.lead_override_suit: lead_suit = self.lead_override_suit
-        else: lead_suit = self.current_trick_cards[0]['card']['suit']
+        lead_card = self.current_trick_cards[0]['card']
+        if self.lead_override_suit: 
+            lead_suit = self.lead_override_suit
+        else: 
+            lead_suit = lead_card['suit']
 
         played_suit = card_to_play['suit']
         hand = self.players[sid]['hand']
+        cards_of_lead_suit = [c for c in hand if c['suit'] == lead_suit and c['rank'] != 'Joker']
+        has_lead_suit = len(cards_of_lead_suit) > 0
         
-        has_lead_suit = any(c['suit'] == lead_suit and c['rank'] != 'Joker' for c in hand)
         has_trump = False
         if self.trump_suit != "NT":
             has_trump = any(c['suit'] == self.trump_suit and c['rank'] != 'Joker' for c in hand)
 
         if has_lead_suit:
-            if played_suit == lead_suit: return True, ""
-            return False, f"You must play {lead_suit}!"
+            if played_suit != lead_suit:
+                return False, f"You must play {lead_suit}!"
+            
+            # FORCE HIGHEST
+            if lead_card['rank'] == 'Joker' and lead_card.get('virtual_action') == 'TAKE':
+                best_card = max(cards_of_lead_suit, key=lambda c: self.get_rank_value(c['rank']))
+                best_rank_val = self.get_rank_value(best_card['rank'])
+                played_rank_val = self.get_rank_value(card_to_play['rank'])
+                if played_rank_val < best_rank_val:
+                    return False, f"Joker demands Highest {lead_suit}! (Play {best_card['rank']})"
+            return True, ""
 
         if has_trump:
             if played_suit == self.trump_suit: return True, ""
@@ -148,7 +215,6 @@ class JokerGame:
 
     def play_card(self, sid, card_index, joker_data=None):
         if sid != self.get_current_bidder_id(): return False, "Not your turn!"
-            
         hand = self.players[sid]['hand']
         if card_index >= len(hand): return False, "Invalid card"
         
@@ -162,8 +228,8 @@ class JokerGame:
             action = joker_data.get('joker_action')
             suit_req = joker_data.get('joker_suit')
             if suit_req == 'TRUMP':
+                # This safeguard is less needed now due to frontend fix, but good to keep
                 suit_req = self.trump_suit if self.trump_suit != 'NT' else 'H' 
-            
             played_card['virtual_action'] = action
             played_card['virtual_suit'] = suit_req
             
@@ -181,9 +247,7 @@ class JokerGame:
             played_card['rank_value'] = self.get_rank_value(played_card['rank'])
             played_card['virtual_suit'] = played_card['suit']
 
-        self.current_trick_cards.append({
-            'sid': sid, 'card': played_card, 'name': self.players[sid]['name']
-        })
+        self.current_trick_cards.append({'sid': sid, 'card': played_card, 'name': self.players[sid]['name']})
         self.current_bidder_index = (self.current_bidder_index + 1) % 4
         return True, played_card
 
@@ -199,46 +263,24 @@ class JokerGame:
             
             is_round_over = (self.tricks_played_in_round == self.cards_to_deal)
             self.current_bidder_index = self.turn_order.index(winner['sid'])
-            
             return {'winner': winner, 'round_over': is_round_over}
         return None
 
-    # --- NEW: SCORE CALCULATION LOGIC ---
     def calculate_round_scores(self):
         round_log = {}
         for sid in self.players:
             bid = self.bids.get(sid, 0)
             won = self.tricks_won.get(sid, 0)
             round_score = 0
-            
-            # 1. GRAND SLAM (ALL CARDS)
             if bid == self.cards_to_deal:
-                if won == bid:
-                    # Success: 4/4 -> 400
-                    round_score = bid * 100
-                else:
-                    # Fail: 3/4 -> -400
-                    round_score = -(bid * 100)
+                if won == bid: round_score = bid * 100
+                else: round_score = -(bid * 100)
+            elif won < bid: round_score = -((bid + 1) * 50)
+            elif won == bid: round_score = (bid + 1) * 50
+            elif won > bid: round_score = won * 10
             
-            # 2. UNDER BID (FAIL)
-            elif won < bid:
-                # 2/3 -> -200
-                round_score = -((bid + 1) * 50)
-                
-            # 3. SUCCESS (EXACT)
-            elif won == bid:
-                # 3/3 -> 200
-                round_score = (bid + 1) * 50
-                
-            # 4. OVER BID (MORE)
-            elif won > bid:
-                # 4/2 -> 40
-                round_score = won * 10
-            
-            # Update Total Score
             self.players[sid]['score'] += round_score
             round_log[sid] = round_score
-            
         return round_log
 
     def resolve_winner(self, trick):

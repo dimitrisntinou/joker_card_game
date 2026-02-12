@@ -8,9 +8,15 @@
     <style>
         .joker-section { margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
         .joker-btn { padding: 8px 12px; margin: 4px; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; font-size: 14px; color: white; }
+        
+        /* Button Colors */
         .btn-H { background: #ff5555; } .btn-D { background: #ff5555; } 
         .btn-S { background: #333; } .btn-C { background: #333; } 
         .btn-NT { background: gold; color: black; }
+        
+        /* Disabled State */
+        .joker-btn:disabled { background: #ccc !important; color: #666 !important; cursor: not-allowed; opacity: 0.5; }
+
         .mode-title { font-size: 18px; font-weight: bold; margin-bottom: 5px; color: #333; }
         .mode-take { background: #dff0d8; border-color: #d6e9c6; }
         .mode-give { background: #f2dede; border-color: #ebccd1; }
@@ -79,6 +85,18 @@
             <h3>Your Turn to Bid</h3>
             <p id="forbidden-msg" style="color: red; display:none;">Forbidden: <span id="forbidden-val"></span></p>
             <div id="bid-buttons-container"></div>
+        </div>
+    </div>
+
+    <div id="declaring-modal" class="modal">
+        <div class="modal-content">
+            <h3>Declare Trump</h3>
+            <p>You have 3 Kings. Choose the Trump suit:</p>
+            <button class="joker-btn btn-H" onclick="declareTrump('H')">Hearts ♥</button>
+            <button class="joker-btn btn-D" onclick="declareTrump('D')">Diamonds ♦</button>
+            <button class="joker-btn btn-C" onclick="declareTrump('C')">Clubs ♣</button>
+            <button class="joker-btn btn-S" onclick="declareTrump('S')">Spades ♠</button>
+            <button class="joker-btn btn-NT" onclick="declareTrump('NT')">No Trump</button>
         </div>
     </div>
 
@@ -152,6 +170,15 @@
             socket.emit('player_ready');
             var btn = document.getElementById("ready-btn");
             btn.innerText = "READY!"; btn.disabled = true; btn.style.background = "#4CAF50"; 
+        }
+
+        // --- DECLARATION ---
+        socket.on('your_turn_to_declare', function() {
+            document.getElementById("declaring-modal").style.display = "flex";
+        });
+        function declareTrump(suit) {
+            socket.emit('declare_trump', {suit: suit});
+            document.getElementById("declaring-modal").style.display = "none";
         }
 
         // --- ACE HUNT ---
@@ -320,6 +347,13 @@
             if (card.rank === 'Joker') {
                 pendingJokerIndex = index;
                 var modal = document.getElementById("joker-modal");
+                
+                // --- FIX: DISABLE TRUMP BUTTONS IF NO TRUMP ---
+                var trumpButtons = document.querySelectorAll(".btn-NT");
+                trumpButtons.forEach(btn => {
+                    btn.disabled = (currentTrumpSuit === null);
+                });
+
                 if (isLeader) {
                     document.getElementById("joker-options-lead").style.display = "block";
                     document.getElementById("joker-options-follow").style.display = "none";
