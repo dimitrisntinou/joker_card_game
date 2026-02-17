@@ -8,15 +8,10 @@
     <style>
         .joker-section { margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
         .joker-btn { padding: 8px 12px; margin: 4px; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; font-size: 14px; color: white; }
-        
-        /* Button Colors */
         .btn-H { background: #ff5555; } .btn-D { background: #ff5555; } 
         .btn-S { background: #333; } .btn-C { background: #333; } 
         .btn-NT { background: gold; color: black; }
-        
-        /* Disabled State */
         .joker-btn:disabled { background: #ccc !important; color: #666 !important; cursor: not-allowed; opacity: 0.5; }
-
         .mode-title { font-size: 18px; font-weight: bold; margin-bottom: 5px; color: #333; }
         .mode-take { background: #dff0d8; border-color: #d6e9c6; }
         .mode-give { background: #f2dede; border-color: #ebccd1; }
@@ -35,28 +30,24 @@
 
     <div id="game-screen" style="display:none; width: 100vw; height: 100vh; background: #2e8b57; overflow: hidden;">
         <div id="game-scaler" style="position: relative; width: 1200px; height: 800px; transform-origin: center center;">
-            
             <div id="player-top" class="player-slot" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 200px;">
                 <div id="points-top" class="points-label">Points: 0</div>
                 <div class="avatar">Top</div>
                 <div class="player-info"><span id="name-top">Waiting...</span></div>
                 <div id="bid-score-top" class="score-text"></div>
             </div>
-
             <div id="player-left" class="player-slot" style="position: absolute; top: 50%; left: 20px; transform: translateY(-50%); width: 150px;">
                 <div id="points-left" class="points-label">Points: 0</div>
                 <div class="avatar">Left</div>
                 <div class="player-info"><span id="name-left">Waiting...</span></div>
                 <div id="bid-score-left" class="score-text"></div>
             </div>
-
             <div id="player-right" class="player-slot" style="position: absolute; top: 50%; right: 20px; transform: translateY(-50%); width: 150px;">
                 <div id="points-right" class="points-label">Points: 0</div>
                 <div class="avatar">Right</div>
                 <div class="player-info"><span id="name-right">Waiting...</span></div>
                 <div id="bid-score-right" class="score-text"></div>
             </div>
-
             <div id="center-table" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 700px; height: 400px; border: 12px solid rgba(0,0,0,0.3); border-radius: 200px; display: flex; justify-content: center; align-items: center;">
                 <div id="played-cards-area" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none;"></div>
                 <button id="ready-btn" onclick="sendReady()" disabled style="position: absolute; z-index: 10; padding: 15px 30px; font-size: 20px; font-weight: bold; background: #555; color:white; border: 2px solid white; border-radius: 10px; cursor: not-allowed;">WAITING...</button>
@@ -67,7 +58,6 @@
                 <div id="trump-card-slot" style="position: absolute; right: 60px; transform: rotate(90deg); display:none;"></div>
                 <div id="trump-label" style="position: absolute; bottom: -40px; color: gold; font-weight: bold;"></div>
             </div>
-
             <div id="player-bottom" class="player-slot" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 800px;">
                 <div style="display: flex; justify-content: center; align-items: center;">
                     <div id="my-hand" style="display: flex; justify-content: center; gap: -20px;"></div>
@@ -75,7 +65,6 @@
                 </div>
                 <div id="bid-score-bottom" class="score-text" style="margin-top: 5px;"></div>
             </div>
-
             <div id="logs" style="position: absolute; bottom: 10px; left: 10px; width: 250px; height: 150px; overflow-y: scroll; background: rgba(0,0,0,0.5); color: white; padding: 5px; font-size: 12px; pointer-events: none;"></div>
         </div>
     </div>
@@ -172,7 +161,6 @@
             btn.innerText = "READY!"; btn.disabled = true; btn.style.background = "#4CAF50"; 
         }
 
-        // --- DECLARATION ---
         socket.on('your_turn_to_declare', function() {
             document.getElementById("declaring-modal").style.display = "flex";
         });
@@ -181,7 +169,6 @@
             document.getElementById("declaring-modal").style.display = "none";
         }
 
-        // --- ACE HUNT ---
         socket.on('ace_hunt_animation', function(data) {
             document.getElementById("ready-btn").style.display = "none";
             document.getElementById("ace-hunt-display").style.display = "block";
@@ -205,7 +192,6 @@
             }, 200);
         });
 
-        // --- ROUND START ---
         socket.on('new_round', function(data) {
             currentLeadSuit = null;
             currentTrumpSuit = (data.trump.suit === 'NT') ? null : data.trump.suit;
@@ -277,7 +263,6 @@
             var logs = document.getElementById("logs"); logs.scrollTop = logs.scrollHeight;
         });
 
-        // --- SCORES & STATUS ---
         socket.on('update_scores', function(data) {
             data.scores.forEach(playerData => {
                 var pIndex = allPlayers.findIndex(p => p.sid === playerData.sid);
@@ -347,13 +332,10 @@
             if (card.rank === 'Joker') {
                 pendingJokerIndex = index;
                 var modal = document.getElementById("joker-modal");
-                
-                // --- FIX: DISABLE TRUMP BUTTONS IF NO TRUMP ---
                 var trumpButtons = document.querySelectorAll(".btn-NT");
                 trumpButtons.forEach(btn => {
                     btn.disabled = (currentTrumpSuit === null);
                 });
-
                 if (isLeader) {
                     document.getElementById("joker-options-lead").style.display = "block";
                     document.getElementById("joker-options-follow").style.display = "none";
@@ -410,7 +392,7 @@
 
         socket.on('clear_table', function() { 
             document.getElementById("played-cards-area").innerHTML = ""; 
-            currentLeadSuit = null; // Forces recalculation for new trick
+            currentLeadSuit = null;
         });
 
         socket.on('log_message', function(data) {
@@ -441,7 +423,6 @@
             if (allPlayers[rightIdx]) document.getElementById("name-right").innerText = allPlayers[rightIdx].name;
         }
 
-        // --- RESIZE LOGIC ---
         function resizeGame() {
             var gameScreen = document.getElementById("game-screen");
             var scaler = document.getElementById("game-scaler");

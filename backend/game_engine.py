@@ -16,7 +16,8 @@ class JokerGame:
         
         # --- ROUND SCHEDULE ---
         # 1-8, then four 9s (Kings), then 8-1
-        self.round_schedule = [1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+        #self.round_schedule = [1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+        self.round_schedule = [9, 9, 9, 9]
         self.current_round_index = -1
         self.round_number = 0
         self.cards_to_deal = 0
@@ -200,6 +201,7 @@ class JokerGame:
             
             # FORCE HIGHEST
             if lead_card['rank'] == 'Joker' and lead_card.get('virtual_action') == 'TAKE':
+                if not cards_of_lead_suit: return True, "" # Should not happen if has_lead_suit is true
                 best_card = max(cards_of_lead_suit, key=lambda c: self.get_rank_value(c['rank']))
                 best_rank_val = self.get_rank_value(best_card['rank'])
                 played_rank_val = self.get_rank_value(card_to_play['rank'])
