@@ -28,6 +28,8 @@
         </div>
     </div>
 
+    <div id="logs" style="display:none;"></div>
+
     <div id="game-screen" style="display:none; width: 100vw; height: 100vh; background: #2e8b57; overflow: hidden;">
         <div id="game-scaler" style="position: relative; width: 1200px; height: 800px; transform-origin: center center;">
             <div id="player-top" class="player-slot" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 200px;">
@@ -65,7 +67,6 @@
                 </div>
                 <div id="bid-score-bottom" class="score-text" style="margin-top: 5px;"></div>
             </div>
-            <div id="logs" style="position: absolute; bottom: 10px; left: 10px; width: 250px; height: 150px; overflow-y: scroll; background: rgba(0,0,0,0.5); color: white; padding: 5px; font-size: 12px; pointer-events: none;"></div>
         </div>
     </div>
 
@@ -152,6 +153,7 @@
                 document.getElementById("login-screen").style.display = "none";
                 var gameScreen = document.getElementById("game-screen");
                 gameScreen.style.display = "flex"; 
+                document.getElementById("logs").style.display = "block"; // Show logs
                 setTimeout(resizeGame, 50);
             }
         }
@@ -172,24 +174,47 @@
         socket.on('ace_hunt_animation', function(data) {
             document.getElementById("ready-btn").style.display = "none";
             document.getElementById("ace-hunt-display").style.display = "block";
+            document.getElementById("ace-card-spot").style.display = "none"; 
             let sequence = data.sequence;
             let i = 0;
             let interval = setInterval(() => {
+                var oldCards = document.querySelectorAll(".ace-hunt-card");
+                oldCards.forEach(c => c.remove());
                 if (i >= sequence.length) { clearInterval(interval); return; }
                 let step = sequence[i];
-                let cardDiv = document.getElementById("ace-card-spot");
-                cardDiv.className = `card rank-${step.card.rank} suit-${step.card.suit}`;
-                document.getElementById("ace-msg").innerText = step.name + " gets...";
+                var pIndex = allPlayers.findIndex(p => p.sid === step.sid);
+                var relIndex = (pIndex - myIndex + 4) % 4; 
+                var pos = "";
+                if (relIndex === 0) pos = "bottom";
+                else if (relIndex === 1) pos = "left";
+                else if (relIndex === 2) pos = "top";
+                else if (relIndex === 3) pos = "right";
+                var playerSlot = document.getElementById("player-" + pos);
+                var cardEl = document.createElement("div");
+                
+                // --- FIX: HANDLE JOKERS CORRECTLY IF THEY APPEAR ---
+                if (step.card.rank === 'Joker') {
+                    cardEl.className = `card card-joker joker-${step.card.suit.toLowerCase()} ace-hunt-card`;
+                } else {
+                    cardEl.className = `card rank-${step.card.rank} suit-${step.card.suit} ace-hunt-card`;
+                }
+                
+                playerSlot.appendChild(cardEl);
+                document.getElementById("ace-msg").innerText = `${step.name} gets ${step.card.rank}${step.card.suit}...`;
                 if (step.is_ace) {
                     clearInterval(interval);
-                    document.getElementById("ace-msg").innerHTML = `<span style="color:red; font-size:24px;">ACE! ${step.name} is Dealer!</span>`;
+                    cardEl.style.transform = "translateX(-50%) scale(1.2)";
+                    cardEl.style.border = "3px solid red";
+                    document.getElementById("ace-msg").innerHTML = `<span style="color:red; font-size:30px;">ACE FOUND! <br> ${step.name} deals!</span>`;
                     setTimeout(() => {
                         document.getElementById("ace-hunt-display").style.display = "none";
+                        var finalCards = document.querySelectorAll(".ace-hunt-card");
+                        finalCards.forEach(c => c.remove());
                         if (myIndex === 0) socket.emit('start_real_round');
-                    }, 2000);
+                    }, 3000);
                 }
                 i++;
-            }, 200);
+            }, 1000);
         });
 
         socket.on('new_round', function(data) {

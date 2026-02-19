@@ -7,77 +7,44 @@ html, body {
     margin: 0;
     padding: 0;
     font-family: Arial, sans-serif;
-    overflow: hidden; /* Prevent scrollbars */
+    overflow: hidden; 
     background: #222;
 }
 
-/* 2. LOGIN SCREEN (Forces it on top) */
+/* 2. LOGIN SCREEN */
 #login-screen {
-    position: fixed; 
-    top: 0; 
-    left: 0; 
-    width: 100vw; 
-    height: 100vh;
-    background: #222; 
-    z-index: 9999; /* Highest priority */
-    display: flex; 
-    flex-direction: column;
-    justify-content: center; 
-    align-items: center;
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: #222; z-index: 9999; 
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
 }
 
-/* 3. GAME SCREEN (Hidden initially, shown by JS) */
+/* 3. GAME SCREEN */
 #game-screen {
-    width: 100vw; 
-    height: 100vh;
+    width: 100vw; height: 100vh;
     background: #2e8b57;
     overflow: hidden;
-    /* Flexbox used to center the Game Scaler */
-    align-items: center; 
-    justify-content: center;
+    display: flex; align-items: center; justify-content: center;
 }
 
 /* --- TABLE ELEMENTS --- */
 .player-slot { text-align: center; color: white; text-shadow: 1px 1px 3px black; z-index: 5; }
 .avatar { width: 60px; height: 60px; background: #444; border: 2px solid gold; border-radius: 50%; margin: 0 auto 5px; line-height: 60px; font-weight: bold; }
 
-#center-table {
-    position: absolute;
-    z-index: 1; 
-}
+#center-table { position: absolute; z-index: 1; }
 
 /* --- CARDS --- */
 .card {
     width: 71px; height: 96px;
     background-image: url('images/cards_sprite.png');
-    background-size: 1300% 400%; /* 13 Cols, 4 Rows */
-    border-radius: 4px;
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
-    display: inline-block;
-    margin: 0 5px;
-    transition: transform 0.2s;
-    cursor: pointer;
+    background-size: 1300% 400%; border-radius: 4px;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.5); display: inline-block;
+    margin: 0 5px; transition: transform 0.2s; cursor: pointer;
 }
+.card:hover { transform: none; } 
 
-/* Hover Effects */
-.card:hover { transform: none; } /* Default: No effect */
-
-.card.valid-card {
-    cursor: pointer;
-    transition: transform 0.2s ease-out;
-    filter: brightness(100%);
-}
-.card.valid-card:hover {
-    transform: translateY(-20px) scale(1.1);
-    box-shadow: 0 0 15px gold;
-    z-index: 100;
-}
-
-.card.invalid-card {
-    cursor: not-allowed;
-    filter: brightness(60%) grayscale(80%);
-    opacity: 0.8;
-}
+.card.valid-card { cursor: pointer; transition: transform 0.2s ease-out; filter: brightness(100%); }
+.card.valid-card:hover { transform: translateY(-20px) scale(1.1); box-shadow: 0 0 15px gold; z-index: 100; }
+.card.invalid-card { cursor: not-allowed; filter: brightness(60%) grayscale(80%); opacity: 0.8; }
 
 .card-back {
     width: 71px; height: 96px;
@@ -86,23 +53,14 @@ html, body {
 }
 
 /* --- SPRITE MAPPINGS --- */
-.suit-C { background-position-y: 0%; }
-.suit-S { background-position-y: 33.33%; }
-.suit-H { background-position-y: 66.66%; }
-.suit-D { background-position-y: 100%; }
-
-.rank-A { background-position-x: 0%; }
-.rank-2 { background-position-x: 8.33%; }
-.rank-3 { background-position-x: 16.66%; }
-.rank-4 { background-position-x: 25%; }
-.rank-5 { background-position-x: 33.33%; }
-.rank-6 { background-position-x: 41.66%; }
-.rank-7 { background-position-x: 50%; }
-.rank-8 { background-position-x: 58.33%; }
-.rank-9 { background-position-x: 66.66%; }
-.rank-10{ background-position-x: 75%; }
-.rank-J { background-position-x: 83.33%; }
-.rank-Q { background-position-x: 91.66%; }
+.suit-C { background-position-y: 0%; } .suit-S { background-position-y: 33.33%; }
+.suit-H { background-position-y: 66.66%; } .suit-D { background-position-y: 100%; }
+.rank-A { background-position-x: 0%; } .rank-2 { background-position-x: 8.33%; }
+.rank-3 { background-position-x: 16.66%; } .rank-4 { background-position-x: 25%; }
+.rank-5 { background-position-x: 33.33%; } .rank-6 { background-position-x: 41.66%; }
+.rank-7 { background-position-x: 50%; } .rank-8 { background-position-x: 58.33%; }
+.rank-9 { background-position-x: 66.66%; } .rank-10{ background-position-x: 75%; }
+.rank-J { background-position-x: 83.33%; } .rank-Q { background-position-x: 91.66%; }
 .rank-K { background-position-x: 100%; }
 
 /* JOKERS */
@@ -111,24 +69,38 @@ html, body {
 .joker-black { background-image: url('images/joker_black.png') !important; }
 
 /* --- PLAYED AREA --- */
-#played-cards-area {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    z-index: 100;
-    pointer-events: none; 
-}
-
+#played-cards-area { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none; }
 #played-cards-area .card {
-    position: absolute;
-    width: 71px; height: 96px;
-    transform: translate(-50%, -50%);
-    transition: all 0.5s ease-out;
-    box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
-    z-index: auto;
+    position: absolute; width: 71px; height: 96px;
+    transform: translate(-50%, -50%); transition: all 0.5s ease-out;
+    box-shadow: 2px 2px 10px rgba(0,0,0,0.5); z-index: auto;
 }
 
+/* ACE HUNT */
 #ace-hunt-display { z-index: 50; }
+.ace-hunt-card {
+    position: absolute; top: -40px; left: 50%;
+    transform: translateX(-50%) scale(0.8); z-index: 100;
+    box-shadow: 0 0 10px gold;
+}
+
+/* --- CHAT LOGS (MOVED TO LEFT SIDE) --- */
+#logs {
+    position: absolute;
+    top: 55%; /* Start a bit below middle */
+    left: 20px; 
+    transform: translateY(-50%);
+    width: 250px; 
+    height: 300px; /* Taller */
+    overflow-y: auto; /* Enable Scroll */
+    background: rgba(0,0,0,0.6); 
+    color: white; 
+    padding: 10px; 
+    font-size: 14px; 
+    border-radius: 8px;
+    pointer-events: auto; /* ALLOW CLICKING/SCROLLING */
+    z-index: 20;
+}
 
 /* --- MODALS --- */
 .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
@@ -136,23 +108,7 @@ html, body {
 .bid-btn { background-color: gold; border: none; padding: 10px 15px; margin: 5px; cursor: pointer; font-weight: bold; font-size: 16px; border-radius: 5px; }
 .bid-btn:hover { background-color: #ffd700; transform: scale(1.1); }
 
-/* --- SCORES & POINTS --- */
-.points-label {
-    font-size: 18px;
-    color: gold;
-    font-weight: bold;
-    text-shadow: 1px 1px 2px black;
-    margin-bottom: 5px;
-}
-
-.score-text {
-    font-size: 28px;
-    font-weight: bold;
-    text-shadow: 2px 2px 4px black;
-    letter-spacing: 2px;
-    margin-top: 5px;
-}
-
-.score-white { color: white; }
-.score-green { color: #00ff00; }
-.score-red   { color: #ff3333; }
+/* --- SCORES --- */
+.points-label { font-size: 18px; color: gold; font-weight: bold; text-shadow: 1px 1px 2px black; margin-bottom: 5px; }
+.score-text { font-size: 28px; font-weight: bold; text-shadow: 2px 2px 4px black; letter-spacing: 2px; margin-top: 5px; }
+.score-white { color: white; } .score-green { color: #00ff00; } .score-red { color: #ff3333; }

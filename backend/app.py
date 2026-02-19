@@ -75,7 +75,7 @@ def handle_start_round():
         leader_sid = game.get_current_bidder_id()
         leader_name = game.players[leader_sid]['name']
         
-        emit('log_message', {'msg': f"Round {game.round_number}. {leader_name} has 3 Kings... Declaring!"}, broadcast=True)
+        emit('log_message', {'msg': f"Round {game.round_number}. {leader_name} Declaring!"}, broadcast=True)
         
         # 1. Show the Leader their 3 cards so they can decide
         emit('new_round', {

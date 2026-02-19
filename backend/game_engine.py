@@ -14,10 +14,9 @@ class JokerGame:
         self.game_phase = "WAITING" 
         self.turn_order = []    
         
-        # --- ROUND SCHEDULE ---
         # 1-8, then four 9s (Kings), then 8-1
         #self.round_schedule = [1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 9, 8, 7, 6, 5, 4, 3, 2, 1]
-        self.round_schedule = [9, 9, 9, 9]
+        self.round_schedule = [9,9,9,9]
         self.current_round_index = -1
         self.round_number = 0
         self.cards_to_deal = 0
@@ -40,7 +39,7 @@ class JokerGame:
             return True
         return False
 
-    def create_deck(self):
+    def create_deck(self, with_jokers=True):
         self.deck = []
         suits = ['H', 'D', 'C', 'S']
         ranks = ['7', '8', '9', '10', 'J', 'Q', 'K', 'A']
@@ -49,12 +48,17 @@ class JokerGame:
                 self.deck.append({"rank": r, "suit": s, "value": f"{r}{s}"})
         self.deck.append({"rank": "6", "suit": "H", "value": "6H"})
         self.deck.append({"rank": "6", "suit": "D", "value": "6D"})
-        self.deck.append({"rank": "Joker", "suit": "Red", "value": "JKR"})
-        self.deck.append({"rank": "Joker", "suit": "Black", "value": "JKB"})
+        
+        if with_jokers:
+            self.deck.append({"rank": "Joker", "suit": "Red", "value": "JKR"})
+            self.deck.append({"rank": "Joker", "suit": "Black", "value": "JKB"})
+            
         random.shuffle(self.deck)
 
     def perform_ace_hunt(self):
-        self.create_deck()
+        # Create deck WITHOUT Jokers
+        self.create_deck(with_jokers=False)
+        
         ace_hunt_log = []
         found_ace = False
         current_idx = 0
@@ -81,11 +85,15 @@ class JokerGame:
         self.round_number = self.current_round_index + 1
         self.cards_to_deal = self.round_schedule[self.current_round_index]
         
-        self.dealer_index = (self.dealer_index + 1) % 4
+        # --- FIX: Only rotate dealer if NOT the first round ---
+        # (Because Ace Hunt already selected the dealer for Round 1)
+        if self.current_round_index > 0:
+            self.dealer_index = (self.dealer_index + 1) % 4
+            
         self.current_bidder_index = (self.dealer_index + 1) % 4 
         leader_sid = self.turn_order[self.current_bidder_index]
         
-        self.create_deck()
+        self.create_deck(with_jokers=True)
         self.bids = {}
         self.tricks_won = {sid: 0 for sid in self.players}
         self.current_trick_cards = []
@@ -94,7 +102,6 @@ class JokerGame:
         
         for sid in self.players: self.players[sid]["hand"] = []
 
-        # --- 9 CARDS (DECLARATION) ---
         if self.cards_to_deal == 9:
             self.game_phase = "DECLARING"
             hand = []
@@ -103,13 +110,12 @@ class JokerGame:
             self.players[leader_sid]["hand"] = hand
             return "DECLARING" 
         
-        # --- NORMAL ROUND ---
         self.game_phase = "BIDDING"
         for sid in self.players:
             hand = []
             for _ in range(self.cards_to_deal):
                 if self.deck: hand.append(self.deck.pop())
-            hand.sort(key=lambda x: (x['rank'] == 'Joker', x['suit'], x['rank']))
+            hand.sort(key=lambda x: (x['rank'] == 'Joker', x['suit'], self.get_rank_value(x['rank'])))
             self.players[sid]["hand"] = hand
             
         if self.deck:
@@ -124,30 +130,25 @@ class JokerGame:
             
         return "BIDDING"
 
-    # --- UPDATED: VISUALS FOR DECLARATION ---
     def set_trump_and_deal(self, suit_choice):
         self.trump_suit = suit_choice
         
         if suit_choice == 'NT':
-            # VISUAL FIX: Show Joker for NT
             self.trump_card = {"rank": "Joker", "suit": "Red", "value": "NO TRUMP"}
         else:
-            # VISUAL FIX: Show Ace of that suit
             self.trump_card = {"rank": "A", "suit": suit_choice, "value": f"Trump: {suit_choice}"}
 
         leader_sid = self.get_current_bidder_id()
-        
-        # Complete dealing
         for _ in range(6):
             if self.deck: self.players[leader_sid]["hand"].append(self.deck.pop())
-        self.players[leader_sid]["hand"].sort(key=lambda x: (x['rank'] == 'Joker', x['suit'], x['rank']))
+        self.players[leader_sid]["hand"].sort(key=lambda x: (x['rank'] == 'Joker', x['suit'], self.get_rank_value(x['rank'])))
         
         for sid in self.players:
             if sid == leader_sid: continue
             hand = []
             for _ in range(9):
                 if self.deck: hand.append(self.deck.pop())
-            hand.sort(key=lambda x: (x['rank'] == 'Joker', x['suit'], x['rank']))
+            hand.sort(key=lambda x: (x['rank'] == 'Joker', x['suit'], self.get_rank_value(x['rank'])))
             self.players[sid]["hand"] = hand
             
         self.game_phase = "BIDDING"
@@ -199,9 +200,8 @@ class JokerGame:
             if played_suit != lead_suit:
                 return False, f"You must play {lead_suit}!"
             
-            # FORCE HIGHEST
             if lead_card['rank'] == 'Joker' and lead_card.get('virtual_action') == 'TAKE':
-                if not cards_of_lead_suit: return True, "" # Should not happen if has_lead_suit is true
+                if not cards_of_lead_suit: return True, "" 
                 best_card = max(cards_of_lead_suit, key=lambda c: self.get_rank_value(c['rank']))
                 best_rank_val = self.get_rank_value(best_card['rank'])
                 played_rank_val = self.get_rank_value(card_to_play['rank'])
@@ -230,7 +230,6 @@ class JokerGame:
             action = joker_data.get('joker_action')
             suit_req = joker_data.get('joker_suit')
             if suit_req == 'TRUMP':
-                # This safeguard is less needed now due to frontend fix, but good to keep
                 suit_req = self.trump_suit if self.trump_suit != 'NT' else 'H' 
             played_card['virtual_action'] = action
             played_card['virtual_suit'] = suit_req
