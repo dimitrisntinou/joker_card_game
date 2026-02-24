@@ -75,7 +75,7 @@ def handle_start_round():
         leader_sid = game.get_current_bidder_id()
         leader_name = game.players[leader_sid]['name']
         
-        emit('log_message', {'msg': f"Round {game.round_number}. {leader_name} Declaring!"}, broadcast=True)
+        emit('log_message', {'msg': f"Round {game.round_number}. {leader_name} has 3 Kings... Declaring!"}, broadcast=True)
         
         # 1. Show the Leader their 3 cards so they can decide
         emit('new_round', {
@@ -118,7 +118,7 @@ def handle_declaration(data):
     for pid in game.players:
         emit('new_round', {
             'hand': game.players[pid]['hand'],
-            'trump': game.trump_card, # Now contains the Ace or Joker
+            'trump': game.trump_card, 
             'round_number': game.round_number,
             'max_bid': 9
         }, room=pid)
@@ -180,10 +180,18 @@ def handle_play_card(data):
         winner = result_data['winner']
         is_round_over = result_data['round_over']
         
-        broadcast_scores() # Update trick count
+        # --- NEW: PAUSE FOR 1.5 SECONDS TO LET PLAYERS SEE THE FINAL CARD ---
+        socketio.sleep(1.5)
         
+        broadcast_scores() # Update trick count
         emit('log_message', {'msg': f"--- {winner['name']} wins! ---"}, broadcast=True)
-        socketio.sleep(1) 
+        
+        # --- TRIGGER WINNER ANIMATION ---
+        emit('animate_trick_winner', {'winner_sid': winner['sid']}, broadcast=True)
+        
+        # Wait slightly longer (1.2s) so the animation finishes before clearing the table
+        socketio.sleep(1.2) 
+        
         emit('clear_table', {}, broadcast=True)
         
         if is_round_over:
