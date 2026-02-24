@@ -188,3 +188,41 @@ html, body {
     justify-content: space-between;
     align-items: center;
 }
+
+/* Container for the 4 played cards in the middle */
+#table-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 200px;
+    height: 200px;
+    transform: translate(-50%, -50%);
+    pointer-events: none; /* Let clicks pass through */
+}
+
+/* Specific slots for each player's played card */
+.played-card-slot {
+    border: 1px dashed rgba(255, 255, 255, 0.1); /* Optional: shows you where the card will land */
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.slot-bottom { bottom: 0; left: 60px; z-index: 10; }
+.slot-top    { top: 0; left: 60px; z-index: 5; }
+.slot-left   { left: 0; top: 45px; z-index: 8; }
+.slot-right  { right: 0; top: 45px; z-index: 8; }
+
+/* Move the Trump (Kozer) to a formal side position */
+#trump-container {
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    text-align: center;
+    border: 2px solid gold;
+    padding: 10px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 10px;
+}

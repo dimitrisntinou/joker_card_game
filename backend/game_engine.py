@@ -16,6 +16,7 @@ class JokerGame:
         self.premia_eligible = {}
         self.current_phase_scores = {}
         self.score_history = []
+        self.ready_for_next_round = set()
         
         self.round_schedule = [1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 9, 8, 7, 6, 5, 4, 3, 2, 1, 9, 9, 9, 9]
         #self.round_schedule = [9,9,9,9]
@@ -216,13 +217,22 @@ class JokerGame:
             if played_suit != lead_suit:
                 return False, f"You must play {lead_suit}!"
             
+            # --- JOKER FORCING RULE ---
             if lead_card['rank'] == 'Joker' and lead_card.get('virtual_action') == 'TAKE':
-                if not cards_of_lead_suit: return True, "" 
-                best_card = max(cards_of_lead_suit, key=lambda c: self.get_rank_value(c['rank']))
-                best_rank_val = self.get_rank_value(best_card['rank'])
-                played_rank_val = self.get_rank_value(card_to_play['rank'])
-                if played_rank_val < best_rank_val:
-                    return False, f"Joker demands Highest {lead_suit}! (Play {best_card['rank']})"
+                
+                # STRICT RULE: Only force the highest card if asking for Kozer!
+                # (If it is a No Trump round, Kozer defaults to Hearts)
+                is_kozer_requested = (lead_suit == self.trump_suit)
+                is_nt_kozer_fallback = (self.trump_suit == 'NT' and lead_suit == 'H')
+
+                if is_kozer_requested or is_nt_kozer_fallback:
+                    best_card = max(cards_of_lead_suit, key=lambda c: self.get_rank_value(c['rank']))
+                    best_rank_val = self.get_rank_value(best_card['rank'])
+                    played_rank_val = self.get_rank_value(card_to_play['rank'])
+                    
+                    if played_rank_val < best_rank_val:
+                        return False, f"Joker demands Highest Kozer! (Play {best_card['rank']})"
+            
             return True, ""
 
         if has_trump:
@@ -230,6 +240,16 @@ class JokerGame:
             return False, f"You must play Kozer ({self.trump_suit})!"
 
         return True, ""
+    
+    def get_valid_moves(self, sid):
+        valid_indices = []
+        hand = self.players[sid]['hand']
+        for i in range(len(hand)):
+            # Ask your existing rules engine if this specific card is legal
+            valid, _ = self.is_move_valid(sid, hand[i])
+            if valid:
+                valid_indices.append(i)
+        return valid_indices
 
     def play_card(self, sid, card_index, joker_data=None):
         if sid != self.get_current_bidder_id(): return False, "Not your turn!"
@@ -285,6 +305,9 @@ class JokerGame:
 
     def calculate_round_scores(self):
         round_log = {}
+        history_entry = {}
+        
+        # 1. Calculate standard base scores for this round
         for sid in self.players:
             bid = self.bids.get(sid, 0)
             won = self.tricks_won.get(sid, 0)
@@ -311,6 +334,19 @@ class JokerGame:
                 self.current_phase_scores[sid] = []
             self.current_phase_scores[sid].append(round_score)
 
+            # --- NEW: Prepare this round's history entry with DEFAULT flags ---
+            history_entry[sid] = {
+                'bid': bid,
+                'won': won,
+                'points_earned': round_score,
+                'premia': self.premia_eligible.get(sid, True),
+                'is_deleted': False, # <-- Will turn True if deleted by Premia
+                'is_doubled': False  # <-- Will turn True if doubled by Premia
+            }
+            
+        # Add to history BEFORE premia rules, so we can modify the history directly!
+        self.score_history.append(history_entry)
+
         premia_logs = []
 
         # 2. Check if this is the final round of a phase (rounds 8, 12, 20, 24)
@@ -325,42 +361,50 @@ class JokerGame:
                 bonus = round_log[sid]
                 if bonus > 0:
                     self.players[sid]['score'] += bonus # Add it again to double it
+                    
+                    # Double it in the UI table and flag it as golden
+                    self.score_history[-1][sid]['points_earned'] *= 2 
+                    self.score_history[-1][sid]['is_doubled'] = True  
+                    
                     name = self.players[sid]['name']
                     premia_logs.append(f"⭐ {name} kept Premia! Last round score (+{bonus}) doubled!")
 
             # ADVANTAGE 2: Delete the highest POSITIVE scores of non-premia players
             if premia_winners and non_premia_players:
+                # Find where the current phase started in the history
+                if self.current_round_index == 7: start_idx = 0
+                elif self.current_round_index == 11: start_idx = 8
+                elif self.current_round_index == 19: start_idx = 12
+                elif self.current_round_index == 23: start_idx = 20
+                else: start_idx = 0
                 
-                vulnerable_scores = []
-                # Gather only positive scores (> 0) from players who lost premia
-                for sid in non_premia_players:
-                    for val in self.current_phase_scores[sid]:
-                        if val > 0:
-                            vulnerable_scores.append((val, sid))
-                
-                # Sort from highest to lowest
-                vulnerable_scores.sort(key=lambda x: x[0], reverse=True)
-                
-                # Each premia winner deletes the highest available score
-                for winner_sid in premia_winners:
-                    if vulnerable_scores:
-                        score_to_delete, target_sid = vulnerable_scores.pop(0)
-                        self.players[target_sid]['score'] -= score_to_delete
+                # Loop through EACH player who lost Premia individually
+                for target_sid in non_premia_players:
+                    
+                    # Each Premia winner gets to delete one score from this target player
+                    for winner_sid in premia_winners:
+                        highest_score = 0
+                        target_round_idx = -1
                         
-                        winner_name = self.players[winner_sid]['name']
-                        target_name = self.players[target_sid]['name']
-                        premia_logs.append(f"💥 {winner_name}'s Premia deleted {score_to_delete} points from {target_name}!")
-
-        # --- SAVE TO HISTORY FOR THE SCOREBOARD ---
-        history_entry = {}
-        for sid in self.players:
-            history_entry[sid] = {
-                'bid': self.bids.get(sid, 0),
-                'won': self.tricks_won.get(sid, 0),
-                'points_earned': round_log.get(sid, 0),
-                'premia': self.premia_eligible.get(sid, True)
-            }
-        self.score_history.append(history_entry)
+                        # Search the history of this specific phase
+                        for i in range(start_idx, len(self.score_history)):
+                            record = self.score_history[i].get(target_sid)
+                            # Find highest score that IS NOT already deleted
+                            if record and record['points_earned'] > highest_score and not record['is_deleted']:
+                                highest_score = record['points_earned']
+                                target_round_idx = i
+                                
+                        # If we found a score to delete...
+                        if target_round_idx != -1:
+                            # Flag it as deleted in the history book for the UI!
+                            self.score_history[target_round_idx][target_sid]['is_deleted'] = True
+                            
+                            # Remove the points from their real total
+                            self.players[target_sid]['score'] -= highest_score
+                            
+                            winner_name = self.players[winner_sid]['name']
+                            target_name = self.players[target_sid]['name']
+                            premia_logs.append(f"💥 {winner_name}'s Premia deleted {highest_score} points from {target_name}!")
 
         return round_log, premia_logs
 
