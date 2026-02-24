@@ -13,10 +13,12 @@ class JokerGame:
         
         self.game_phase = "WAITING" 
         self.turn_order = []    
+        self.premia_eligible = {}
+        self.current_phase_scores = {}
+        self.score_history = []
         
-        # 1-8, then four 9s (Kings), then 8-1
-        #self.round_schedule = [1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 9, 8, 7, 6, 5, 4, 3, 2, 1]
-        self.round_schedule = [9,9,9,9]
+        self.round_schedule = [1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 9, 8, 7, 6, 5, 4, 3, 2, 1, 9, 9, 9, 9]
+        #self.round_schedule = [9,9,9,9]
         self.current_round_index = -1
         self.round_number = 0
         self.cards_to_deal = 0
@@ -78,14 +80,21 @@ class JokerGame:
 
     # --- ROUND START ---
     def start_new_round(self):
+        prev_phase = self.get_current_phase(self.current_round_index) if self.current_round_index >= 0 else 0
         self.current_round_index += 1
+
         if self.current_round_index >= len(self.round_schedule):
             return "GAME_OVER" 
+        
+        curr_phase = self.get_current_phase(self.current_round_index)
+        if prev_phase != curr_phase:
+            for sid in self.players:
+                self.premia_eligible[sid] = True
+                self.current_phase_scores[sid] = [] # Reset history for the new phase
             
         self.round_number = self.current_round_index + 1
         self.cards_to_deal = self.round_schedule[self.current_round_index]
         
-        # --- FIX: Only rotate dealer if NOT the first round ---
         # (Because Ace Hunt already selected the dealer for Round 1)
         if self.current_round_index > 0:
             self.dealer_index = (self.dealer_index + 1) % 4
@@ -158,6 +167,13 @@ class JokerGame:
         if not self.turn_order: return None
         if self.current_bidder_index >= len(self.turn_order): self.current_bidder_index = 0
         return self.turn_order[self.current_bidder_index]
+    
+    def get_current_phase(self, index):
+        # Maps the round index to the correct phase (1-8, 9s, 8-1, 9s)
+        if index < 8: return 1      
+        elif index < 12: return 2   
+        elif index < 20: return 3   
+        else: return 4
 
     def get_forbidden_bid(self, player_sid):
         if len(self.bids) < 3: return None 
@@ -273,6 +289,8 @@ class JokerGame:
             bid = self.bids.get(sid, 0)
             won = self.tricks_won.get(sid, 0)
             round_score = 0
+            
+            # Standard scoring logic
             if bid == self.cards_to_deal:
                 if won == bid: round_score = bid * 100
                 else: round_score = -(bid * 100)
@@ -280,9 +298,71 @@ class JokerGame:
             elif won == bid: round_score = (bid + 1) * 50
             elif won > bid: round_score = won * 10
             
+            # Lose Premia if you miss your bid
+            if won != bid:
+                self.premia_eligible[sid] = False
+                
+            # Apply points to player
             self.players[sid]['score'] += round_score
             round_log[sid] = round_score
-        return round_log
+            
+            # Save this round's score to the phase history
+            if sid not in self.current_phase_scores:
+                self.current_phase_scores[sid] = []
+            self.current_phase_scores[sid].append(round_score)
+
+        premia_logs = []
+
+        # 2. Check if this is the final round of a phase (rounds 8, 12, 20, 24)
+        is_phase_end = self.current_round_index in [7, 11, 19, 23]
+        
+        if is_phase_end:
+            premia_winners = [sid for sid in self.players if self.premia_eligible.get(sid, True)]
+            non_premia_players = [sid for sid in self.players if not self.premia_eligible.get(sid, True)]
+
+            # ADVANTAGE 1: Double the score of the LAST round of the phase
+            for sid in premia_winners:
+                bonus = round_log[sid]
+                if bonus > 0:
+                    self.players[sid]['score'] += bonus # Add it again to double it
+                    name = self.players[sid]['name']
+                    premia_logs.append(f"⭐ {name} kept Premia! Last round score (+{bonus}) doubled!")
+
+            # ADVANTAGE 2: Delete the highest POSITIVE scores of non-premia players
+            if premia_winners and non_premia_players:
+                
+                vulnerable_scores = []
+                # Gather only positive scores (> 0) from players who lost premia
+                for sid in non_premia_players:
+                    for val in self.current_phase_scores[sid]:
+                        if val > 0:
+                            vulnerable_scores.append((val, sid))
+                
+                # Sort from highest to lowest
+                vulnerable_scores.sort(key=lambda x: x[0], reverse=True)
+                
+                # Each premia winner deletes the highest available score
+                for winner_sid in premia_winners:
+                    if vulnerable_scores:
+                        score_to_delete, target_sid = vulnerable_scores.pop(0)
+                        self.players[target_sid]['score'] -= score_to_delete
+                        
+                        winner_name = self.players[winner_sid]['name']
+                        target_name = self.players[target_sid]['name']
+                        premia_logs.append(f"💥 {winner_name}'s Premia deleted {score_to_delete} points from {target_name}!")
+
+        # --- SAVE TO HISTORY FOR THE SCOREBOARD ---
+        history_entry = {}
+        for sid in self.players:
+            history_entry[sid] = {
+                'bid': self.bids.get(sid, 0),
+                'won': self.tricks_won.get(sid, 0),
+                'points_earned': round_log.get(sid, 0),
+                'premia': self.premia_eligible.get(sid, True)
+            }
+        self.score_history.append(history_entry)
+
+        return round_log, premia_logs
 
     def resolve_winner(self, trick):
         first_card = trick[0]['card']

@@ -28,26 +28,25 @@
         </div>
     </div>
 
-    <div id="logs" style="display:none;"></div>
-
     <div id="game-screen" style="display:none; width: 100vw; height: 100vh; background: #2e8b57; overflow: hidden;">
+        <div id="logs" style="display:none;"></div>
         <div id="game-scaler" style="position: relative; width: 1200px; height: 800px; transform-origin: center center;">
             <div id="player-top" class="player-slot" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 200px;">
                 <div id="points-top" class="points-label">Points: 0</div>
                 <div class="avatar">Top</div>
-                <div class="player-info"><span id="name-top">Waiting...</span></div>
+                <div class="player-info"><span id="name-top">Waiting...</span> <span id="premia-top" class="premia-mark">✅</span></div>
                 <div id="bid-score-top" class="score-text"></div>
             </div>
             <div id="player-left" class="player-slot" style="position: absolute; top: 50%; left: 20px; transform: translateY(-50%); width: 150px;">
                 <div id="points-left" class="points-label">Points: 0</div>
                 <div class="avatar">Left</div>
-                <div class="player-info"><span id="name-left">Waiting...</span></div>
+                <div class="player-info"><span id="name-left">Waiting...</span> <span id="premia-left" class="premia-mark">✅</span></div>
                 <div id="bid-score-left" class="score-text"></div>
             </div>
             <div id="player-right" class="player-slot" style="position: absolute; top: 50%; right: 20px; transform: translateY(-50%); width: 150px;">
                 <div id="points-right" class="points-label">Points: 0</div>
                 <div class="avatar">Right</div>
-                <div class="player-info"><span id="name-right">Waiting...</span></div>
+                <div class="player-info"><span id="name-right">Waiting...</span> <span id="premia-right" class="premia-mark">✅</span></div>
                 <div id="bid-score-right" class="score-text"></div>
             </div>
             <div id="center-table" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 700px; height: 400px; border: 12px solid rgba(0,0,0,0.3); border-radius: 200px; display: flex; justify-content: center; align-items: center;">
@@ -63,9 +62,17 @@
             <div id="player-bottom" class="player-slot" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 800px;">
                 <div style="display: flex; justify-content: center; align-items: center;">
                     <div id="my-hand" style="display: flex; justify-content: center; gap: -20px;"></div>
-                    <div id="points-bottom" class="points-label" style="margin-left: 20px; white-space: nowrap;">Points: 0</div>
+                    
+                    <div class="points-label" style="margin-left: 20px; white-space: nowrap;">
+                        <span id="points-bottom">Points: 0</span> 
+                        <span id="premia-bottom" class="premia-mark">✅</span>
+                    </div>
+                    
                 </div>
                 <div id="bid-score-bottom" class="score-text" style="margin-top: 5px;"></div>
+            </div>
+            <div id="joker-action-banner" style="display: none; position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.85); border: 2px solid gold; border-radius: 12px; padding: 15px 30px; color: gold; font-size: 26px; font-weight: bold; text-align: center; z-index: 300; box-shadow: 0px 0px 20px gold;">
+                <span id="joker-action-text"></span>
             </div>
         </div>
     </div>
@@ -118,6 +125,17 @@
                 <button class="joker-btn mode-give" style="font-size: 20px; width: 100%;" onclick="submitJokerMove('GIVE', 'LEAD')">GIVE (Lowest Card)</button>
             </div>
             <button onclick="closeJokerModal()" style="margin-top:10px; width:100%; padding:10px;">Cancel</button>
+        </div>
+    </div>
+
+    <button onclick="document.getElementById('scoreboard-modal').style.display='flex'" style="position: absolute; top: 20px; right: 20px; z-index: 50; padding: 10px 15px; font-weight: bold; cursor: pointer; border-radius: 5px;">📜 View Scores</button>
+
+    <div id="scoreboard-modal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-top: 0;">Game Scores</h2>
+            <table class="score-table" id="score-table">
+                </table>
+            <button onclick="document.getElementById('scoreboard-modal').style.display='none'" style="margin-top:20px; padding:10px; width:100%; font-size:16px;">Close</button>
         </div>
     </div>
 
@@ -199,7 +217,14 @@
                 }
                 
                 playerSlot.appendChild(cardEl);
-                document.getElementById("ace-msg").innerText = `${step.name} gets ${step.card.rank}${step.card.suit}...`;
+                // Convert suit letter to symbol
+                let suitSymbol = "";
+                if (step.card.suit === 'H') suitSymbol = "♥";
+                else if (step.card.suit === 'D') suitSymbol = "♦";
+                else if (step.card.suit === 'C') suitSymbol = "♣";
+                else if (step.card.suit === 'S') suitSymbol = "♠";
+                
+                document.getElementById("ace-msg").innerText = `${step.name} gets ${step.card.rank}${suitSymbol}...`;
                 if (step.is_ace) {
                     clearInterval(interval);
                     cardEl.style.transform = "translateX(-50%) scale(0.8)";
@@ -310,6 +335,12 @@
                         var won = playerData.tricks;
                         var bid = playerData.bid;
                         bidEl.innerText = `${won}/${bid}`;
+                        
+                        var premiaEl = document.getElementById("premia-" + pos);
+                        if (premiaEl) {
+                            premiaEl.innerText = playerData.premia ? "✅" : "❌";
+                        }
+                        
                         bidEl.className = "score-text"; 
                         if (won < bid) bidEl.classList.add("score-white");
                         else if (won === bid) bidEl.classList.add("score-green");
@@ -319,6 +350,75 @@
                     }
                 }
             });
+
+            // --- DRAW THE SCOREBOARD PAPER UI ---
+            if (data.history && data.turn_order) {
+                var table = document.getElementById("score-table");
+                var html = "<tr>";
+                
+                // Draw Header (Names + Premia 'P')
+                data.turn_order.forEach(sid => {
+                    var p = allPlayers.find(pl => pl.sid === sid);
+                    var name = p ? p.name : "Player";
+
+                    // Find if this player currently has Premia
+                    var pScoreObj = data.scores.find(s => s.sid === sid);
+                    var hasPremia = pScoreObj ? pScoreObj.premia : true;
+
+                    var premiaLabel = hasPremia 
+                        ? `<div style='color: #4CAF50; font-weight: bold; font-size: 18px; margin-bottom: 2px;'>P</div>` 
+                        : `<div style='font-size: 18px; margin-bottom: 2px;'>&nbsp;</div>`;
+
+                    // FIXED LINE: Added premiaLabel here
+                    html += `<th>${premiaLabel}${name}</th>`;
+                });
+                html += "</tr>";
+
+                // Draw Rows
+                data.history.forEach((round, index) => {
+                    html += "<tr>";
+                    data.turn_order.forEach(sid => {
+                        var pData = round[sid];
+                        if (pData) {
+                            var tick = (pData.bid === pData.won) ? "<span style='color:#4CAF50;'>✅</span>" : "<span style='color:#F44336;'>❌</span>";
+                            html += `<td>
+                                <div class="score-cell">
+                                    <span>${pData.bid}</span> 
+                                    <span>${pData.points_earned}</span> 
+                                    ${tick}
+                                </div>
+                            </td>`;
+                        } else {
+                            html += "<td></td>";
+                        }
+                    });
+                    html += "</tr>";
+                    
+                    var rNum = index + 1;
+                    if (rNum === 8 || rNum === 12 || rNum === 20 || rNum === 24) {
+                        html += "<tr class='phase-total-row'>";
+                        data.turn_order.forEach(sid => {
+                            var currentTotal = data.scores.find(s => s.sid === sid)?.total_score || 0;
+                            html += `<td>Total: ${currentTotal}</td>`;
+                        });
+                        html += "</tr>";
+                    }
+                });
+                table.innerHTML = html;
+
+                // --- NEW: AUTO-POPUP SCOREBOARD ---
+                // If the history length matches a round end, show the scoreboard for 6 seconds
+                var totalRoundsPlayed = data.history.length;
+                if (totalRoundsPlayed > 0) {
+                    document.getElementById('scoreboard-modal').style.display = 'flex';
+                    
+                    // Only close it automatically if it's NOT the very end of a phase
+                    // This gives players time to look at the scores
+                    setTimeout(() => {
+                        document.getElementById('scoreboard-modal').style.display = 'none';
+                    }, 6000); 
+                }
+            }
         });
 
         function highlightValidCards() {

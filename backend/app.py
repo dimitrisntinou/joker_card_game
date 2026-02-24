@@ -34,10 +34,22 @@ def broadcast_scores():
             'bid': bid,
             'tricks': tricks,
             'has_bid': has_bid,
-            'total_score': total_score
+            'total_score': total_score,
+            'premia': game.premia_eligible.get(sid, True)
         })
+
+    # THIS IS THE PART THAT WAS MISSING:
+    emit('update_scores', {
+        'scores': score_data,
+        'history': game.score_history, # Send the scoreboard data
+        'turn_order': game.turn_order  # Keep columns in correct order
+    }, broadcast=True)
         
-    emit('update_scores', {'scores': score_data}, broadcast=True)
+    emit('update_scores', {
+        'scores': score_data,
+        'history': game.score_history, # Send the full table history
+        'turn_order': game.turn_order  # Send the order to make columns match
+    }, broadcast=True)
 
 # --- CONNECT & JOIN ---
 @socketio.on('join_game')
@@ -171,44 +183,56 @@ def handle_play_card(data):
         emit('error_message', {'msg': result}, room=sid)
         return
         
+    # Show the card on the table first
     emit('card_played_on_table', {'sid': sid, 'card': result}, broadcast=True)
     emit('hand_update', {'hand': game.players[sid]['hand']}, room=sid)
 
+    # --- NEW: JOKER ANNOUNCEMENT BLOCK ---
+    # If the card played was a Joker, broadcast the decision (Take it / Burn it)
+    if result.get('rank') == 'Joker':
+        player_name = game.players[sid]['name']
+        # We use the joker_action from the data sent by the player
+        action_text = joker_action.replace('_', ' ').upper() if joker_action else "PLAYED"
+        
+        emit('joker_action', {
+            'name': player_name, 
+            'action': action_text
+        }, broadcast=True)
+
+    # --- CONTINUE WITH TRICK LOGIC ---
     result_data = game.check_trick_end()
     
     if result_data:
         winner = result_data['winner']
         is_round_over = result_data['round_over']
         
-        # --- NEW: PAUSE FOR 1.5 SECONDS TO LET PLAYERS SEE THE FINAL CARD ---
         socketio.sleep(1.5)
         
-        broadcast_scores() # Update trick count
+        broadcast_scores() 
         emit('log_message', {'msg': f"--- {winner['name']} wins! ---"}, broadcast=True)
-        
-        # --- TRIGGER WINNER ANIMATION ---
         emit('animate_trick_winner', {'winner_sid': winner['sid']}, broadcast=True)
         
-        # Wait slightly longer (1.2s) so the animation finishes before clearing the table
         socketio.sleep(1.2) 
-        
         emit('clear_table', {}, broadcast=True)
         
         if is_round_over:
-            game.calculate_round_scores()
-            broadcast_scores() # Update total points
+            round_log, premia_logs = game.calculate_round_scores()
+            broadcast_scores() 
             
+            for msg in premia_logs:
+                emit('log_message', {'msg': msg}, broadcast=True)
+                socketio.sleep(0.8)
+                
             emit('log_message', {'msg': f"Round {game.round_number} Finished!"}, broadcast=True)
             socketio.sleep(1)
             
-            # --- START NEXT ROUND ---
             phase_status = game.start_new_round()
             
             if phase_status == "GAME_OVER":
                 emit('log_message', {'msg': "GAME OVER! Thanks for playing!"}, broadcast=True)
                 return
 
-            broadcast_scores() # Clear old bids
+            broadcast_scores() 
 
             if phase_status == "DECLARING":
                 leader_sid = game.get_current_bidder_id()
