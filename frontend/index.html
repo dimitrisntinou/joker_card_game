@@ -87,6 +87,9 @@
             <div id="joker-action-banner" style="display: none; position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.85); border: 2px solid gold; border-radius: 12px; padding: 15px 30px; color: gold; font-size: 26px; font-weight: bold; text-align: center; z-index: 300; box-shadow: 0px 0px 20px gold;">
                 <span id="joker-action-text"></span>
             </div>
+            <div id="waiting-banner" style="display: none; position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.85); border: 2px solid white; border-radius: 12px; padding: 15px 30px; color: white; font-size: 24px; font-weight: bold; text-align: center; z-index: 250; box-shadow: 0px 0px 15px rgba(255,255,255,0.2);">
+                <span id="waiting-banner-text"></span>
+            </div>
         </div>
     </div>
 
@@ -101,7 +104,7 @@
     <div id="declaring-modal" class="modal">
         <div class="modal-content">
             <h3>Declare Trump</h3>
-            <p>You have 3 Kings. Choose the Trump suit:</p>
+            <p>Choose the Trump suit:</p>
             <button class="joker-btn btn-H" onclick="declareTrump('H')">Hearts ♥</button>
             <button class="joker-btn btn-D" onclick="declareTrump('D')">Diamonds ♦</button>
             <button class="joker-btn btn-C" onclick="declareTrump('C')">Clubs ♣</button>
@@ -164,7 +167,15 @@
         var myHandData = []; 
         var myValidIndices = []; // <-- NEW: Stores the allowed cards from the backend
 
-        socket.on('connect', function() { console.log("Connected"); });
+        socket.on('connect', function() {
+            console.log("Connected to server!");
+            var savedName = sessionStorage.getItem("joker_username");
+            
+            if (savedName) {
+                // If we remember who you are, secretly send the join command!
+                socket.emit('join_game', {username: savedName});
+            }
+        });
         socket.on('your_id', function(data) { mySid = data.sid; });
         socket.on('update_player_list', function(data) {
             allPlayers = data.players;
@@ -180,6 +191,9 @@
         function joinGame() {
             var name = document.getElementById("username").value;
             if(name) {
+                // ---> NEW: Save the username to this specific tab's memory!
+                sessionStorage.setItem("joker_username", name);
+
                 socket.emit('join_game', {username: name});
                 document.getElementById("login-screen").style.display = "none";
                 var gameScreen = document.getElementById("game-screen");
@@ -188,6 +202,7 @@
                 setTimeout(resizeGame, 50);
             }
         }
+        
         function sendReady() {
             socket.emit('player_ready');
             var btn = document.getElementById("ready-btn");
@@ -254,8 +269,10 @@
         });
 
         socket.on('new_round', function(data) {
+            document.getElementById("waiting-banner").style.display = "none";
             currentLeadSuit = null;
             currentTrumpSuit = (data.trump.suit === 'NT') ? null : data.trump.suit;
+            document.getElementById("waiting-banner").style.display = "none";
             document.getElementById("deck-pile").style.display = "block";
             document.getElementById("trump-card-slot").style.display = "block";
             var tSlot = document.getElementById("trump-card-slot");
@@ -277,6 +294,15 @@
                 label.style.color = "white";
             }
             renderHand(data.hand);
+        });
+        
+        // --- WAITING FOR TRUMP DECLARATION ---
+        socket.on('wait_for_declare', function(data) {
+            // Only show the banner if we are NOT the person choosing!
+            if (mySid !== data.leader_sid) {
+                document.getElementById("waiting-banner-text").innerText = `⏳ Waiting for ${data.leader_name} to choose Kozer...`;
+                document.getElementById("waiting-banner").style.display = "block";
+            }
         });
 
         socket.on('your_turn_to_bid', function(data) {
@@ -324,6 +350,100 @@
             var logs = document.getElementById("logs"); logs.scrollTop = logs.scrollHeight;
         });
 
+        // --- SMART RECONNECT LOGIC ---
+        socket.on('sync_game_state', function(data) {
+            // 1. Hide the login screen, open the game board
+            document.getElementById("login-screen").style.display = "none";
+            document.getElementById("game-screen").style.display = "flex";
+            document.getElementById("logs").style.display = "block"; 
+            setTimeout(resizeGame, 50);
+
+            // 2. Hide the "Ready" button if the game is already in progress
+            if (data.game_phase !== "WAITING") {
+                document.getElementById("ready-btn").style.display = "none";
+                document.getElementById("deck-pile").style.display = "block";
+            }
+
+            // 3. Redraw your Hand
+            renderHand(data.hand);
+
+            // 4. Redraw the Kozer (Trump) box
+            if (data.trump_card) {
+                document.getElementById("trump-card-slot").style.display = "block";
+                var tSlot = document.getElementById("trump-card-slot");
+                var label = document.getElementById("trump-label");
+                var suitChar = data.trump_card.suit; 
+                var symbol = ""; var color = "white";
+                
+                if (suitChar === 'H') { symbol = "♥"; color = "#ff5555"; } 
+                else if (suitChar === 'D') { symbol = "♦"; color = "#ff5555"; } 
+                else if (suitChar === 'C') { symbol = "♣"; color = "black"; }
+                else if (suitChar === 'S') { symbol = "♠"; color = "black"; }
+                
+                if (data.trump_card.rank === 'Joker') {
+                    tSlot.className = `card card-joker joker-${data.trump_card.suit.toLowerCase()}`;
+                    label.innerHTML = "NO TRUMP (Joker)"; label.style.color = "gold";
+                    currentTrumpSuit = null;
+                } else if (suitChar === 'NT') {
+                    tSlot.className = "card card-back"; label.innerHTML = "NO TRUMP"; label.style.color = "gold";
+                    currentTrumpSuit = null;
+                } else {
+                    tSlot.className = `card rank-${data.trump_card.rank} suit-${data.trump_card.suit}`;
+                    label.innerHTML = `TRUMP <span style="color: ${color}; font-size: 28px;">${symbol}</span>`;
+                    label.style.color = "white";
+                    currentTrumpSuit = suitChar;
+                }
+            }
+
+            // 5. Redraw any cards currently sitting on the table
+            ["bottom", "top", "left", "right"].forEach(pos => {
+                var slot = document.getElementById("played-" + pos);
+                if (slot) slot.innerHTML = "";
+            });
+
+            if (data.current_trick && data.current_trick.length > 0) {
+                currentLeadSuit = data.current_trick[0].card.virtual_suit || data.current_trick[0].card.suit;
+                
+                data.current_trick.forEach(trick_play => {
+                    var pIndex = allPlayers.findIndex(p => p.sid === trick_play.sid);
+                    if(pIndex === -1) return;
+                    var relIndex = (pIndex - myIndex + 4) % 4; 
+                    var pos = "";
+                    if (relIndex === 0) pos = "bottom";
+                    else if (relIndex === 1) pos = "left";
+                    else if (relIndex === 2) pos = "top";
+                    else if (relIndex === 3) pos = "right";
+
+                    var targetSlot = document.getElementById("played-" + pos);
+                    if (targetSlot) {
+                        var cardEl = document.createElement("div");
+                        if (trick_play.card.rank === 'Joker') {
+                            cardEl.className = `card card-joker joker-${trick_play.card.suit.toLowerCase()}`;
+                        } else {
+                            cardEl.className = `card rank-${trick_play.card.rank} suit-${trick_play.card.suit}`;
+                        }
+                        cardEl.style.position = "relative";
+                        cardEl.style.margin = "0 auto";
+                        if (pos === "left") cardEl.style.transform = "rotate(90deg)";
+                        if (pos === "right") cardEl.style.transform = "rotate(-90deg)";
+                        cardEl.style.opacity = "1";
+                        targetSlot.appendChild(cardEl);
+                    }
+                });
+            }
+
+            // 6. Restore the turn indicator and locking mechanisms
+            myTurn = (data.current_bidder_sid === mySid);
+            if (myTurn) {
+                myValidIndices = data.my_valid_indices;
+                isLeader = (data.current_trick.length === 0);
+                document.getElementById("my-hand").style.borderTop = "4px solid lime";
+            } else {
+                document.getElementById("my-hand").style.borderTop = "none";
+            }
+            updateHandVisuals();
+        });
+
         socket.on('update_scores', function(data) {
             data.scores.forEach(playerData => {
                 var pIndex = allPlayers.findIndex(p => p.sid === playerData.sid);
@@ -354,9 +474,9 @@
                         }
                         
                         bidEl.className = "score-text"; 
-                        if (won < bid) bidEl.classList.add("score-white");
+                        if (won < bid) bidEl.classList.add("score-red");
                         else if (won === bid) bidEl.classList.add("score-green");
-                        else bidEl.classList.add("score-red");
+                        else bidEl.classList.add("score-white");
                     } else {
                         bidEl.innerText = ""; 
                     }

@@ -19,7 +19,7 @@ class JokerGame:
         self.ready_for_next_round = set()
         
         self.round_schedule = [1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 9, 8, 7, 6, 5, 4, 3, 2, 1, 9, 9, 9, 9]
-        #self.round_schedule = [9,9,9,9]
+        #self.round_schedule = [9,9,9,9,8, 7, 6, 5, 4, 3, 2, 1, 9, 9, 9, 9]
         self.current_round_index = -1
         self.round_number = 0
         self.cards_to_deal = 0
@@ -27,7 +27,51 @@ class JokerGame:
         self.dealer_index = -1  
         self.current_bidder_index = 0
         self.current_trick_cards = []
-        self.lead_override_suit = None 
+        self.lead_override_suit = None
+
+    def update_player_sid(self, old_sid, new_sid):
+        # 1. Swap in main dictionaries
+        if old_sid in self.players:
+            self.players[new_sid] = self.players.pop(old_sid)
+            
+        # 2. Swap in the physical table seating array
+        for i in range(len(self.turn_order)):
+            if self.turn_order[i] == old_sid:
+                self.turn_order[i] = new_sid
+                
+        # 3. Swap in all trackers
+        if old_sid in self.bids: self.bids[new_sid] = self.bids.pop(old_sid)
+        if old_sid in self.tricks_won: self.tricks_won[new_sid] = self.tricks_won.pop(old_sid)
+        if old_sid in self.premia_eligible: self.premia_eligible[new_sid] = self.premia_eligible.pop(old_sid)
+        if old_sid in self.current_phase_scores: self.current_phase_scores[new_sid] = self.current_phase_scores.pop(old_sid)
+        
+        if old_sid in self.ready_players:
+            self.ready_players.remove(old_sid)
+            self.ready_players.add(new_sid)
+        if old_sid in self.ready_for_next_round:
+            self.ready_for_next_round.remove(old_sid)
+            self.ready_for_next_round.add(new_sid)
+            
+        # 4. Swap in history book
+        for entry in self.score_history:
+            if old_sid in entry:
+                entry[new_sid] = entry.pop(old_sid)
+                
+        # 5. Swap any cards currently lying on the table
+        for trick_play in self.current_trick_cards:
+            if trick_play['sid'] == old_sid:
+                trick_play['sid'] = new_sid
+
+    def get_reconnect_state(self, sid):
+        # Package everything the frontend needs to instantly redraw the game
+        return {
+            'game_phase': self.game_phase,
+            'hand': self.players.get(sid, {}).get('hand', []),
+            'trump_card': self.trump_card,
+            'current_trick': self.current_trick_cards,
+            'current_bidder_sid': self.get_current_bidder_id(),
+            'my_valid_indices': self.get_valid_moves(sid) if self.get_current_bidder_id() == sid else []
+        }
 
     def add_player(self, sid, name):
         if len(self.players) < 4:
@@ -214,24 +258,23 @@ class JokerGame:
             has_trump = any(c['suit'] == self.trump_suit and c['rank'] != 'Joker' for c in hand)
 
         if has_lead_suit:
+            # 1. They must follow the requested suit
             if played_suit != lead_suit:
                 return False, f"You must play {lead_suit}!"
             
-            # --- JOKER FORCING RULE ---
+            # 2. --- JOKER FORCING RULE ---
+            # If the Joker said "TAKE", they MUST play their highest card of that suit!
             if lead_card['rank'] == 'Joker' and lead_card.get('virtual_action') == 'TAKE':
                 
-                # STRICT RULE: Only force the highest card if asking for Kozer!
-                # (If it is a No Trump round, Kozer defaults to Hearts)
-                is_kozer_requested = (lead_suit == self.trump_suit)
-                is_nt_kozer_fallback = (self.trump_suit == 'NT' and lead_suit == 'H')
-
-                if is_kozer_requested or is_nt_kozer_fallback:
-                    best_card = max(cards_of_lead_suit, key=lambda c: self.get_rank_value(c['rank']))
-                    best_rank_val = self.get_rank_value(best_card['rank'])
-                    played_rank_val = self.get_rank_value(card_to_play['rank'])
-                    
-                    if played_rank_val < best_rank_val:
-                        return False, f"Joker demands Highest Kozer! (Play {best_card['rank']})"
+                # Find the highest card they have of the requested suit
+                best_card = max(cards_of_lead_suit, key=lambda c: self.get_rank_value(c['rank']))
+                best_rank_val = self.get_rank_value(best_card['rank'])
+                played_rank_val = self.get_rank_value(card_to_play['rank'])
+                
+                # Block the move if they try to play a smaller card
+                if played_rank_val < best_rank_val:
+                    suit_name = lead_suit if lead_suit != self.trump_suit else "Kozer"
+                    return False, f"Joker demands Highest {suit_name}! (Play {best_card['rank']})"
             
             return True, ""
 
