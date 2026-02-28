@@ -881,9 +881,11 @@
 
         function sendChat() {
             const msg = chatInput.value.trim();
+            const myName = sessionStorage.getItem("joker_username") || "Player"; 
+            
             if (msg !== "") {
-                socket.emit('send_chat', { message: msg });
-                chatInput.value = ''; // clear the box after typing
+                socket.emit('send_chat', { message: msg, nickname: myName });
+                chatInput.value = ''; 
             }
         }
 

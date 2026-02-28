@@ -371,13 +371,11 @@ def handle_ready_next_round():
 
 @socketio.on('send_chat')
 def handle_chat(data):
-    room = session.get('room')
-    nickname = session.get('nickname')
-    message = data.get('message')
+    nickname = data.get('nickname', 'Player')
+    message = data.get('message', '')
     
-    if room and nickname and message:
-        # Send the typed message to everyone at the table
-        emit('receive_chat', {'nickname': nickname, 'message': message}, room=room)
+    if message:
+        emit('receive_chat', {'nickname': nickname, 'message': message}, broadcast=True)
 
 if __name__ == '__main__':
     print("=========================================")
