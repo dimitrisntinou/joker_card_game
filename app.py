@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, session
 from flask_socketio import SocketIO, emit
 from game_engine import JokerGame
 
@@ -7,7 +7,7 @@ from game_engine import JokerGame
 base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 frontend_dir = os.path.join(base_dir, 'frontend')
 
-app = Flask(__name__, template_folder=frontend_dir, static_folder=frontend_dir)
+app = Flask(__name__)
 app.config['SECRET_KEY'] = 'joker_secret_key'
 socketio = SocketIO(app, async_mode='eventlet')
 
@@ -369,7 +369,22 @@ def handle_ready_next_round():
             emit('your_turn_to_bid', {'forbidden': game.get_forbidden_bid(first_bidder_sid)}, room=first_bidder_sid)
             emit('your_turn_to_play', {'is_leader': True}, room=first_bidder_sid)
 
+@socketio.on('send_chat')
+def handle_chat(data):
+    room = session.get('room')
+    nickname = session.get('nickname')
+    message = data.get('message')
+    
+    if room and nickname and message:
+        # Send the typed message to everyone at the table
+        emit('receive_chat', {'nickname': nickname, 'message': message}, room=room)
+
 if __name__ == '__main__':
-    # host='0.0.0.0' tells Python to accept connections from ANY computer
-    # port=5000 is the standard port, change it if you are using a different one
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    print("=========================================")
+    print("🃏 JOKER SERVER IS STARTING...")
+    print("🌍 Play locally at: http://localhost:7860")
+    print("=========================================")
+    
+    # debug=True brings back your terminal logs!
+    # allow_unsafe_werkzeug=True prevents a common crash when using debug mode with Socket.IO
+    socketio.run(app, host='0.0.0.0', port=7860, debug=True, allow_unsafe_werkzeug=True)

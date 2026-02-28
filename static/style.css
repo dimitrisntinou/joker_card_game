@@ -84,13 +84,8 @@ html, body {
     box-shadow: 0 0 10px gold;
 }
 
-/* --- CHAT LOGS (MOVED TO LEFT SIDE) --- */
 #logs {
-    position: absolute;
-    top: auto;        /* Clears any previous top positioning */
-    transform: none;  /* Clears any previous centering */
-    bottom: 20px;     /* Locks to the bottom edge */
-    left: 20px;       /* Locks to the left edge */
+    /* Notice we removed absolute, bottom, and left from here! */
     width: 250px; 
     height: 200px; 
     overflow-y: auto; 
@@ -99,8 +94,7 @@ html, body {
     padding: 10px; 
     font-size: 14px; 
     border-radius: 8px;
-    pointer-events: auto; 
-    z-index: 200;     /* Ensures it stays above cards */
+    pointer-events: auto; /* Keeps the box scrollable */
 }
 
 /* --- MODALS --- */
@@ -288,4 +282,40 @@ div.mode-take button, div.mode-give button {
     border: 3px solid gold;
     box-shadow: 5px 5px 30px rgba(0,0,0,0.8);
     background-color: rgba(255, 255, 255, 0.97); /* Very slight transparency */
+}
+
+#chat-wrapper {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    pointer-events: none; /* Lets clicks pass through the empty space around it */
+}
+
+#chat-form {
+    display: flex;
+    gap: 5px;
+    pointer-events: auto; /* Makes the typing bar clickable */
+}
+
+#chat-input {
+    flex-grow: 1;
+    padding: 6px;
+    border-radius: 4px;
+    border: 1px solid #777;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    outline: none;
+}
+
+#chat-send {
+    padding: 6px 12px;
+    background: gold;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
 }

@@ -18,7 +18,13 @@
     </div>
 
     <div id="game-screen" style="display:none; width: 100vw; height: 100vh; background: #2e8b57; overflow: hidden;">
-        <div id="logs" style="display:none;"></div>
+        <div id="chat-wrapper">
+            <div id="logs"></div>
+            <div id="chat-form">
+                <input type="text" id="chat-input" placeholder="Chat here..." autocomplete="off">
+                <button id="chat-send">Send</button>
+            </div>
+        </div>
         <div id="game-scaler" style="position: relative; width: 1200px; height: 800px; transform-origin: center center;">
             <div id="player-top" class="player-slot" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 200px;">
                 <div id="points-top" class="points-label">Points: 0</div>
@@ -866,6 +872,35 @@
             var scale = Math.min(window.innerWidth / baseWidth, window.innerHeight / baseHeight);
             scaler.style.transform = `scale(${scale * 0.95})`; 
         }
+
+        // ==========================================
+        // --- CUSTOM CHAT MESSAGES ---
+        // ==========================================
+        const chatInput = document.getElementById('chat-input');
+        const chatSendBtn = document.getElementById('chat-send');
+
+        function sendChat() {
+            const msg = chatInput.value.trim();
+            if (msg !== "") {
+                socket.emit('send_chat', { message: msg });
+                chatInput.value = ''; // clear the box after typing
+            }
+        }
+
+        // Send when clicking the gold button or pressing Enter
+        chatSendBtn.addEventListener('click', sendChat);
+        chatInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') sendChat();
+        });
+
+        // Listen for friends typing messages
+        socket.on('receive_chat', function(data) {
+            const logsDiv = document.getElementById('logs');
+            // Player chat will be cyan blue so it stands out from game text!
+            logsDiv.innerHTML += `<div><b style="color: #00e5ff;">${data.nickname}:</b> <span style="color: white;">${data.message}</span></div>`;
+            logsDiv.scrollTop = logsDiv.scrollHeight; // Auto-scroll to bottom
+        });
+        
         window.addEventListener('resize', resizeGame);
     </script>
 </body>
