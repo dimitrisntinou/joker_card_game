@@ -226,3 +226,24 @@ html, body {
     background: rgba(0,0,0,0.3);
     border-radius: 10px;
 }
+
+/* The temporary card used just for the animation */
+.flying-card {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 60px;  /* Adjust to match your actual card width */
+    height: 90px; /* Adjust to match your actual card height */
+    background-color: #0b5e86; /* Color of your card back */
+    border: 2px solid #fff;
+    border-radius: 6px;
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.2) 5px, rgba(255,255,255,0.2) 10px);
+    z-index: 1000;
+    
+    /* Center the origin point */
+    transform: translate(-50%, -50%); 
+    
+    /* The magic that makes it slide smoothly */
+    transition: transform 0.4s ease-out, opacity 0.4s ease-in; 
+    pointer-events: none; /* So it doesn't block clicks */
+}

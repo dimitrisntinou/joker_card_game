@@ -34,19 +34,19 @@
             <div id="player-top" class="player-slot" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 200px;">
                 <div id="points-top" class="points-label">Points: 0</div>
                 <div class="avatar">Top</div>
-                <div class="player-info"><span id="name-top">Waiting...</span> <span id="premia-top" class="premia-mark">✅</span></div>
+                <div class="player-info"><span id="name-top">Waiting...</span> <span id="premia-top" class="premia-mark"></span></div>
                 <div id="bid-score-top" class="score-text"></div>
             </div>
             <div id="player-left" class="player-slot" style="position: absolute; top: 50%; left: 20px; transform: translateY(-50%); width: 150px;">
                 <div id="points-left" class="points-label">Points: 0</div>
                 <div class="avatar">Left</div>
-                <div class="player-info"><span id="name-left">Waiting...</span> <span id="premia-left" class="premia-mark">✅</span></div>
+                <div class="player-info"><span id="name-left">Waiting...</span> <span id="premia-left" class="premia-mark"></span></div>
                 <div id="bid-score-left" class="score-text"></div>
             </div>
             <div id="player-right" class="player-slot" style="position: absolute; top: 50%; right: 20px; transform: translateY(-50%); width: 150px;">
                 <div id="points-right" class="points-label">Points: 0</div>
                 <div class="avatar">Right</div>
-                <div class="player-info"><span id="name-right">Waiting...</span> <span id="premia-right" class="premia-mark">✅</span></div>
+                <div class="player-info"><span id="name-right">Waiting...</span> <span id="premia-right" class="premia-mark"></span></div>
                 <div id="bid-score-right" class="score-text"></div>
             </div>
             <div id="center-table" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 700px; height: 400px; border: 12px solid rgba(0,0,0,0.3); border-radius: 200px;">
@@ -78,7 +78,7 @@
                     
                     <div class="points-label" style="margin-left: 20px; white-space: nowrap;">
                         <span id="points-bottom">Points: 0</span> 
-                        <span id="premia-bottom" class="premia-mark">✅</span>
+                        <span id="premia-bottom" class="premia-mark"></span>
                     </div>
                     
                 </div>
@@ -209,6 +209,66 @@
             btn.innerText = "READY!"; btn.disabled = true; btn.style.background = "#4CAF50"; 
         }
 
+        /**
+        * Animates cards dealing from the center to all players.
+        * @param {number} cardsPerPlayer - How many cards each player gets this round.
+        */
+        function animateDealing(cardsPerPlayer) {
+            // The order the cards are dealt in
+            const positions = ["bottom", "left", "top", "right"];
+            let delay = 0;
+            const delayBetweenCards = 100; // milliseconds between each card flying
+
+            for (let i = 0; i < cardsPerPlayer; i++) {
+                positions.forEach((pos) => {
+                    setTimeout(() => {
+                        dealSingleCard(pos);
+                    }, delay);
+                    delay += delayBetweenCards;
+                });
+            }
+        }
+
+        function dealSingleCard(targetPosition) {
+            // 1. Create the dummy card element
+            var card = document.createElement('div');
+            card.className = 'flying-card';
+            document.body.appendChild(card);
+
+            // 2. Find where it needs to go (Use the points element as an anchor, or your player avatar)
+            // You might want to change "points-" to whatever ID holds the player's cards
+            var targetEl = document.getElementById("points-" + targetPosition); 
+            if (!targetEl) {
+                card.remove();
+                return;
+            }
+
+            // 3. Get the exact coordinates of the target on the screen
+            var rect = targetEl.getBoundingClientRect();
+            var startX = window.innerWidth / 2;
+            var startY = window.innerHeight / 2;
+            
+            // Target the center of the player's area
+            var endX = rect.left + (rect.width / 2);
+            var endY = rect.top + (rect.height / 2);
+
+            // Calculate the distance to move
+            var tx = endX - startX;
+            var ty = endY - startY;
+
+            // 4. Force browser to register the initial center position before moving
+            void card.offsetWidth;
+
+            // 5. Trigger the animation
+            card.style.transform = `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(0.5)`;
+            card.style.opacity = "0"; // Fade out as it reaches the player
+
+            // 6. Delete the temporary card after the animation finishes (0.4s = 400ms)
+            setTimeout(() => {
+                card.remove();
+            }, 400);
+        }
+
         socket.on('your_turn_to_declare', function() {
             document.getElementById("declaring-modal").style.display = "flex";
         });
@@ -283,6 +343,7 @@
             else if (suitChar === 'D') { symbol = "♦"; color = "#ff5555"; } 
             else if (suitChar === 'C') { symbol = "♣"; color = "black"; }
             else if (suitChar === 'S') { symbol = "♠"; color = "black"; }
+            
             if (data.trump.rank === 'Joker') {
                 tSlot.className = `card card-joker joker-${data.trump.suit.toLowerCase()}`;
                 label.innerHTML = "NO TRUMP (Joker)"; label.style.color = "gold";
@@ -293,22 +354,25 @@
                 label.innerHTML = `TRUMP <span style="color: ${color}; font-size: 28px;">${symbol}</span>`;
                 label.style.color = "white";
             }
-            renderHand(data.hand);
-        });
-        
-        // --- WAITING FOR TRUMP DECLARATION ---
-        socket.on('wait_for_declare', function(data) {
-            // Only show the banner if we are NOT the person choosing!
-            if (mySid !== data.leader_sid) {
-                document.getElementById("waiting-banner-text").innerText = `⏳ Waiting for ${data.leader_name} to choose Kozer...`;
-                document.getElementById("waiting-banner").style.display = "block";
-            }
+            
+            // --- NEW: Save the hand data immediately before the animation delays the rendering ---
+            myHandData = data.hand; 
+            
+            var numCards = data.hand.length;
+            animateDealing(numCards);
+            
+            var animationDuration = (numCards * 100) + 300; 
+            
+            setTimeout(() => {
+                renderHand(data.hand);
+            }, animationDuration);
         });
 
         socket.on('your_turn_to_bid', function(data) {
             var container = document.getElementById("bid-buttons-container");
             container.innerHTML = ""; 
-            var handSize = document.getElementById("my-hand").children.length;
+            var handSize = myHandData.length; 
+            
             if (data.forbidden !== null) {
                 document.getElementById("forbidden-msg").style.display = "block";
                 document.getElementById("forbidden-val").innerText = data.forbidden;
@@ -470,7 +534,7 @@
                         
                         var premiaEl = document.getElementById("premia-" + pos);
                         if (premiaEl) {
-                            premiaEl.innerText = playerData.premia ? "✅" : "❌";
+                            premiaEl.innerHTML = playerData.premia ? "<span style='color: gold; font-weight: bold; font-size: 1.2em; text-shadow: 1px 1px 2px black;'>P</span>" : "";
                         }
                         
                         bidEl.className = "score-text"; 
@@ -504,6 +568,7 @@
                     data.turn_order.forEach(sid => {
                         var pData = round[sid];
                         if (pData) {
+                            // REVERTED: Kept as ✅ and ❌ for the View Scores Menu
                             var tick = (pData.bid === pData.won) ? "<span style='color:#4CAF50;'>✅</span>" : "<span style='color:#F44336;'>❌</span>";
                             
                             // --- NEW: CHECK FOR DELETED OR DOUBLED SCORES ---
