@@ -13,10 +13,13 @@ class JokerGame:
         
         self.game_phase = "WAITING" 
         self.turn_order = []    
+        self.premia_eligible = {}
+        self.current_phase_scores = {}
+        self.score_history = []
+        self.ready_for_next_round = set()
         
-        # 1-8, then four 9s (Kings), then 8-1
-        #self.round_schedule = [1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 9, 8, 7, 6, 5, 4, 3, 2, 1]
-        self.round_schedule = [9,9,9,9]
+        self.round_schedule = [1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 9, 8, 7, 6, 5, 4, 3, 2, 1, 9, 9, 9, 9]
+        #self.round_schedule = [9,9,9,9,8, 7, 6, 5, 4, 3, 2, 1, 9, 9, 9, 9]
         self.current_round_index = -1
         self.round_number = 0
         self.cards_to_deal = 0
@@ -24,7 +27,51 @@ class JokerGame:
         self.dealer_index = -1  
         self.current_bidder_index = 0
         self.current_trick_cards = []
-        self.lead_override_suit = None 
+        self.lead_override_suit = None
+
+    def update_player_sid(self, old_sid, new_sid):
+        # 1. Swap in main dictionaries
+        if old_sid in self.players:
+            self.players[new_sid] = self.players.pop(old_sid)
+            
+        # 2. Swap in the physical table seating array
+        for i in range(len(self.turn_order)):
+            if self.turn_order[i] == old_sid:
+                self.turn_order[i] = new_sid
+                
+        # 3. Swap in all trackers
+        if old_sid in self.bids: self.bids[new_sid] = self.bids.pop(old_sid)
+        if old_sid in self.tricks_won: self.tricks_won[new_sid] = self.tricks_won.pop(old_sid)
+        if old_sid in self.premia_eligible: self.premia_eligible[new_sid] = self.premia_eligible.pop(old_sid)
+        if old_sid in self.current_phase_scores: self.current_phase_scores[new_sid] = self.current_phase_scores.pop(old_sid)
+        
+        if old_sid in self.ready_players:
+            self.ready_players.remove(old_sid)
+            self.ready_players.add(new_sid)
+        if old_sid in self.ready_for_next_round:
+            self.ready_for_next_round.remove(old_sid)
+            self.ready_for_next_round.add(new_sid)
+            
+        # 4. Swap in history book
+        for entry in self.score_history:
+            if old_sid in entry:
+                entry[new_sid] = entry.pop(old_sid)
+                
+        # 5. Swap any cards currently lying on the table
+        for trick_play in self.current_trick_cards:
+            if trick_play['sid'] == old_sid:
+                trick_play['sid'] = new_sid
+
+    def get_reconnect_state(self, sid):
+        # Package everything the frontend needs to instantly redraw the game
+        return {
+            'game_phase': self.game_phase,
+            'hand': self.players.get(sid, {}).get('hand', []),
+            'trump_card': self.trump_card,
+            'current_trick': self.current_trick_cards,
+            'current_bidder_sid': self.get_current_bidder_id(),
+            'my_valid_indices': self.get_valid_moves(sid) if self.get_current_bidder_id() == sid else []
+        }
 
     def add_player(self, sid, name):
         if len(self.players) < 4:
@@ -78,14 +125,21 @@ class JokerGame:
 
     # --- ROUND START ---
     def start_new_round(self):
+        prev_phase = self.get_current_phase(self.current_round_index) if self.current_round_index >= 0 else 0
         self.current_round_index += 1
+
         if self.current_round_index >= len(self.round_schedule):
             return "GAME_OVER" 
+        
+        curr_phase = self.get_current_phase(self.current_round_index)
+        if prev_phase != curr_phase:
+            for sid in self.players:
+                self.premia_eligible[sid] = True
+                self.current_phase_scores[sid] = [] # Reset history for the new phase
             
         self.round_number = self.current_round_index + 1
         self.cards_to_deal = self.round_schedule[self.current_round_index]
         
-        # --- FIX: Only rotate dealer if NOT the first round ---
         # (Because Ace Hunt already selected the dealer for Round 1)
         if self.current_round_index > 0:
             self.dealer_index = (self.dealer_index + 1) % 4
@@ -158,6 +212,13 @@ class JokerGame:
         if not self.turn_order: return None
         if self.current_bidder_index >= len(self.turn_order): self.current_bidder_index = 0
         return self.turn_order[self.current_bidder_index]
+    
+    def get_current_phase(self, index):
+        # Maps the round index to the correct phase (1-8, 9s, 8-1, 9s)
+        if index < 8: return 1      
+        elif index < 12: return 2   
+        elif index < 20: return 3   
+        else: return 4
 
     def get_forbidden_bid(self, player_sid):
         if len(self.bids) < 3: return None 
@@ -197,16 +258,24 @@ class JokerGame:
             has_trump = any(c['suit'] == self.trump_suit and c['rank'] != 'Joker' for c in hand)
 
         if has_lead_suit:
+            # 1. They must follow the requested suit
             if played_suit != lead_suit:
                 return False, f"You must play {lead_suit}!"
             
+            # 2. --- JOKER FORCING RULE ---
+            # If the Joker said "TAKE", they MUST play their highest card of that suit!
             if lead_card['rank'] == 'Joker' and lead_card.get('virtual_action') == 'TAKE':
-                if not cards_of_lead_suit: return True, "" 
+                
+                # Find the highest card they have of the requested suit
                 best_card = max(cards_of_lead_suit, key=lambda c: self.get_rank_value(c['rank']))
                 best_rank_val = self.get_rank_value(best_card['rank'])
                 played_rank_val = self.get_rank_value(card_to_play['rank'])
+                
+                # Block the move if they try to play a smaller card
                 if played_rank_val < best_rank_val:
-                    return False, f"Joker demands Highest {lead_suit}! (Play {best_card['rank']})"
+                    suit_name = lead_suit if lead_suit != self.trump_suit else "Kozer"
+                    return False, f"Joker demands Highest {suit_name}! (Play {best_card['rank']})"
+            
             return True, ""
 
         if has_trump:
@@ -214,6 +283,16 @@ class JokerGame:
             return False, f"You must play Kozer ({self.trump_suit})!"
 
         return True, ""
+    
+    def get_valid_moves(self, sid):
+        valid_indices = []
+        hand = self.players[sid]['hand']
+        for i in range(len(hand)):
+            # Ask your existing rules engine if this specific card is legal
+            valid, _ = self.is_move_valid(sid, hand[i])
+            if valid:
+                valid_indices.append(i)
+        return valid_indices
 
     def play_card(self, sid, card_index, joker_data=None):
         if sid != self.get_current_bidder_id(): return False, "Not your turn!"
@@ -269,10 +348,15 @@ class JokerGame:
 
     def calculate_round_scores(self):
         round_log = {}
+        history_entry = {}
+        
+        # 1. Calculate standard base scores for this round
         for sid in self.players:
             bid = self.bids.get(sid, 0)
             won = self.tricks_won.get(sid, 0)
             round_score = 0
+            
+            # Standard scoring logic
             if bid == self.cards_to_deal:
                 if won == bid: round_score = bid * 100
                 else: round_score = -(bid * 100)
@@ -280,9 +364,92 @@ class JokerGame:
             elif won == bid: round_score = (bid + 1) * 50
             elif won > bid: round_score = won * 10
             
+            # Lose Premia if you miss your bid
+            if won != bid:
+                self.premia_eligible[sid] = False
+                
+            # Apply points to player
             self.players[sid]['score'] += round_score
             round_log[sid] = round_score
-        return round_log
+            
+            # Save this round's score to the phase history
+            if sid not in self.current_phase_scores:
+                self.current_phase_scores[sid] = []
+            self.current_phase_scores[sid].append(round_score)
+
+            # --- NEW: Prepare this round's history entry with DEFAULT flags ---
+            history_entry[sid] = {
+                'bid': bid,
+                'won': won,
+                'points_earned': round_score,
+                'premia': self.premia_eligible.get(sid, True),
+                'is_deleted': False, # <-- Will turn True if deleted by Premia
+                'is_doubled': False  # <-- Will turn True if doubled by Premia
+            }
+            
+        # Add to history BEFORE premia rules, so we can modify the history directly!
+        self.score_history.append(history_entry)
+
+        premia_logs = []
+
+        # 2. Check if this is the final round of a phase (rounds 8, 12, 20, 24)
+        is_phase_end = self.current_round_index in [7, 11, 19, 23]
+        
+        if is_phase_end:
+            premia_winners = [sid for sid in self.players if self.premia_eligible.get(sid, True)]
+            non_premia_players = [sid for sid in self.players if not self.premia_eligible.get(sid, True)]
+
+            # ADVANTAGE 1: Double the score of the LAST round of the phase
+            for sid in premia_winners:
+                bonus = round_log[sid]
+                if bonus > 0:
+                    self.players[sid]['score'] += bonus # Add it again to double it
+                    
+                    # Double it in the UI table and flag it as golden
+                    self.score_history[-1][sid]['points_earned'] *= 2 
+                    self.score_history[-1][sid]['is_doubled'] = True  
+                    
+                    name = self.players[sid]['name']
+                    premia_logs.append(f"⭐ {name} kept Premia! Last round score (+{bonus}) doubled!")
+
+            # ADVANTAGE 2: Delete the highest POSITIVE scores of non-premia players
+            if premia_winners and non_premia_players:
+                # Find where the current phase started in the history
+                if self.current_round_index == 7: start_idx = 0
+                elif self.current_round_index == 11: start_idx = 8
+                elif self.current_round_index == 19: start_idx = 12
+                elif self.current_round_index == 23: start_idx = 20
+                else: start_idx = 0
+                
+                # Loop through EACH player who lost Premia individually
+                for target_sid in non_premia_players:
+                    
+                    # Each Premia winner gets to delete one score from this target player
+                    for winner_sid in premia_winners:
+                        highest_score = 0
+                        target_round_idx = -1
+                        
+                        # Search the history of this specific phase
+                        for i in range(start_idx, len(self.score_history)):
+                            record = self.score_history[i].get(target_sid)
+                            # Find highest score that IS NOT already deleted
+                            if record and record['points_earned'] > highest_score and not record['is_deleted']:
+                                highest_score = record['points_earned']
+                                target_round_idx = i
+                                
+                        # If we found a score to delete...
+                        if target_round_idx != -1:
+                            # Flag it as deleted in the history book for the UI!
+                            self.score_history[target_round_idx][target_sid]['is_deleted'] = True
+                            
+                            # Remove the points from their real total
+                            self.players[target_sid]['score'] -= highest_score
+                            
+                            winner_name = self.players[winner_sid]['name']
+                            target_name = self.players[target_sid]['name']
+                            premia_logs.append(f"💥 {winner_name}'s Premia deleted {highest_score} points from {target_name}!")
+
+        return round_log, premia_logs
 
     def resolve_winner(self, trick):
         first_card = trick[0]['card']
