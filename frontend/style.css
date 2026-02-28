@@ -247,3 +247,45 @@ html, body {
     transition: transform 0.4s ease-out, opacity 0.4s ease-in; 
     pointer-events: none; /* So it doesn't block clicks */
 }
+
+/* 3D Flip animation for when you pick up your real cards */
+@keyframes dealReveal {
+    0% { transform: translateY(60px) rotateY(180deg) scale(0.6); opacity: 0; }
+    00% { transform: translateY(0) rotateY(0deg) scale(1); opacity: 1; }
+}
+.card-reveal {
+    animation: dealReveal 0.4s ease-out forwards;
+}
+
+.joker-section { margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
+.joker-btn { padding: 8px 12px; margin: 4px; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; font-size: 14px; color: white; }
+.btn-H { background: #ff5555; } .btn-D { background: #ff5555; } 
+.btn-S { background: #333; } .btn-C { background: #333; } 
+.btn-NT { background: gold; color: black; }
+.joker-btn:disabled { background: #ccc !important; color: #666 !important; cursor: not-allowed; opacity: 0.5; }
+.mode-title { font-size: 18px; font-weight: bold; margin-bottom: 5px; color: #333; }
+.mode-take { background: green; color: white; border: none; }
+.mode-give { background: red; color: white; border: none; }
+#joker-options-follow button.mode-take,
+#joker-options-follow button.mode-give {
+    color: white;
+}
+div.mode-take button, div.mode-give button {
+    color: white;
+}
+
+/* Move gameplay modals to the Top-Left corner so they never block the table */
+#joker-modal, #bidding-modal, #declaring-modal {
+    background-color: transparent; /* Removes the dark dimming background */
+    pointer-events: none; /* Lets you see and click through the empty space */
+    align-items: flex-start; /* Moves to the Top */
+    justify-content: flex-start; /* Moves to the Left */
+    padding: 20px;
+}
+
+#joker-modal .modal-content, #bidding-modal .modal-content, #declaring-modal .modal-content {
+    pointer-events: auto; /* Keeps the actual white box clickable */
+    border: 3px solid gold;
+    box-shadow: 5px 5px 30px rgba(0,0,0,0.8);
+    background-color: rgba(255, 255, 255, 0.97); /* Very slight transparency */
+}

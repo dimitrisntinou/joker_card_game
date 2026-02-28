@@ -5,17 +5,6 @@
     <title>Joker Online</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <style>
-        .joker-section { margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
-        .joker-btn { padding: 8px 12px; margin: 4px; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; font-size: 14px; color: white; }
-        .btn-H { background: #ff5555; } .btn-D { background: #ff5555; } 
-        .btn-S { background: #333; } .btn-C { background: #333; } 
-        .btn-NT { background: gold; color: black; }
-        .joker-btn:disabled { background: #ccc !important; color: #666 !important; cursor: not-allowed; opacity: 0.5; }
-        .mode-title { font-size: 18px; font-weight: bold; margin-bottom: 5px; color: #333; }
-        .mode-take { background: #dff0d8; border-color: #d6e9c6; }
-        .mode-give { background: #f2dede; border-color: #ebccd1; }
-    </style>
 </head>
 <body>
 
@@ -166,6 +155,67 @@
         var currentLeadSuit = null; 
         var myHandData = []; 
         var myValidIndices = []; // <-- NEW: Stores the allowed cards from the backend
+        var currentDealDelay = 0; // NEW: Keeps track of how long the dealer takes to deal
+        var isDealing = false;
+
+        function dealCardsLiveAction(hand) {
+            isDealing = true;
+            document.getElementById("my-hand").innerHTML = ""; 
+            
+            const positions = ["left", "top", "right", "bottom"]; 
+            let delay = 0;
+            const delayBetweenDeals = 120;
+            const flightTime = 400;
+
+            for (let i = 0; i < hand.length; i++) {
+                positions.forEach((pos) => {
+                    // 1. Shoot the dummy card across the table
+                    setTimeout(() => {
+                        dealSingleCard(pos);
+                    }, delay);
+
+                    // 2. If the card was dealt to YOU, reveal the real card right as the dummy lands!
+                    if (pos === "bottom") {
+                        setTimeout(() => {
+                            revealRealCard(hand[i], i);
+                        }, delay + flightTime);
+                    }
+                    
+                    delay += delayBetweenDeals;
+                });
+            }
+
+            currentDealDelay = delay + flightTime + 200; 
+
+
+            setTimeout(() => {
+                isDealing = false;
+                updateHandVisuals();
+                currentDealDelay = 0;
+            }, currentDealDelay);
+        }
+
+        function revealRealCard(cardData, index) {
+            var handDiv = document.getElementById("my-hand");
+            
+            // --- Failsafe to block duplicates! ---
+            var cardId = "live-card-" + index;
+            if (document.getElementById(cardId)) {
+                return; // If it's already there, do nothing!
+            }
+            
+            var el = document.createElement("div");
+            el.id = cardId; 
+            
+            if (cardData.rank === 'Joker') {
+                el.className = `card card-joker joker-${cardData.suit.toLowerCase()} card-reveal`;
+            } else {
+                el.className = `card rank-${cardData.rank} suit-${cardData.suit} card-reveal`;
+            }
+            
+            el.onclick = function() { handleCardClick(cardData, index); };
+            handDiv.appendChild(el);
+        }
 
         socket.on('connect', function() {
             console.log("Connected to server!");
@@ -207,26 +257,6 @@
             socket.emit('player_ready');
             var btn = document.getElementById("ready-btn");
             btn.innerText = "READY!"; btn.disabled = true; btn.style.background = "#4CAF50"; 
-        }
-
-        /**
-        * Animates cards dealing from the center to all players.
-        * @param {number} cardsPerPlayer - How many cards each player gets this round.
-        */
-        function animateDealing(cardsPerPlayer) {
-            // The order the cards are dealt in
-            const positions = ["bottom", "left", "top", "right"];
-            let delay = 0;
-            const delayBetweenCards = 100; // milliseconds between each card flying
-
-            for (let i = 0; i < cardsPerPlayer; i++) {
-                positions.forEach((pos) => {
-                    setTimeout(() => {
-                        dealSingleCard(pos);
-                    }, delay);
-                    delay += delayBetweenCards;
-                });
-            }
         }
 
         function dealSingleCard(targetPosition) {
@@ -357,42 +387,40 @@
             
             // --- NEW: Save the hand data immediately before the animation delays the rendering ---
             myHandData = data.hand; 
-            
-            var numCards = data.hand.length;
-            animateDealing(numCards);
-            
-            var animationDuration = (numCards * 100) + 300; 
-            
-            setTimeout(() => {
-                renderHand(data.hand);
-            }, animationDuration);
+
+            dealCardsLiveAction(data.hand);
         });
 
         socket.on('your_turn_to_bid', function(data) {
-            var container = document.getElementById("bid-buttons-container");
-            container.innerHTML = ""; 
-            var handSize = myHandData.length; 
-            
-            if (data.forbidden !== null) {
-                document.getElementById("forbidden-msg").style.display = "block";
-                document.getElementById("forbidden-val").innerText = data.forbidden;
-            } else {
-                document.getElementById("forbidden-msg").style.display = "none";
-            }
-            for (let i = 0; i <= handSize; i++) {
-                let btn = document.createElement("button");
-                btn.innerText = i; btn.className = "bid-btn";
-                if (i === data.forbidden) {
-                    btn.disabled = true; btn.style.background = "#555"; btn.style.cursor = "not-allowed";
+            // Wait for the dealer to finish dealing the cards!
+            setTimeout(() => {
+                var container = document.getElementById("bid-buttons-container");
+                container.innerHTML = ""; 
+                
+                var handSize = myHandData.length; 
+                
+                if (data.forbidden !== null) {
+                    document.getElementById("forbidden-msg").style.display = "block";
+                    document.getElementById("forbidden-val").innerText = data.forbidden;
                 } else {
-                    btn.onclick = function() { 
-                        socket.emit('player_bid', {amount: i});
-                        document.getElementById("bidding-modal").style.display = "none";
-                    };
+                    document.getElementById("forbidden-msg").style.display = "none";
                 }
-                container.appendChild(btn);
-            }
-            document.getElementById("bidding-modal").style.display = "flex";
+                for (let i = 0; i <= handSize; i++) {
+                    let btn = document.createElement("button");
+                    btn.innerText = i; btn.className = "bid-btn";
+                    if (i === data.forbidden) {
+                        btn.disabled = true; btn.style.background = "#555"; btn.style.cursor = "not-allowed";
+                    } else {
+                        btn.onclick = function() { 
+                            socket.emit('player_bid', {amount: i});
+                            document.getElementById("bidding-modal").style.display = "none";
+                        };
+                    }
+                    container.appendChild(btn);
+                }
+                document.getElementById("bidding-modal").style.display = "flex";
+                
+            }, currentDealDelay); // <-- Delays the popup exactly until the last card is flipped!
         });
 
         socket.on('your_turn_to_play', function(data) {
@@ -699,13 +727,18 @@
         function closeJokerModal() {
             document.getElementById("joker-modal").style.display = "none";
             pendingJokerIndex = -1;
+            
+            // --- NEW FIX: Give the player their turn back if they cancel! ---
+            myTurn = true; 
+            updateHandVisuals(); 
         }
 
         socket.on('hand_update', function(data) {
+            if (isDealing) return; // <-- ADD THIS to ignore background updates while dealing!
             renderHand(data.hand);
             myTurn = false;
             document.getElementById("my-hand").style.borderTop = "none";
-            updateHandVisuals(); // Re-apply default visuals
+            updateHandVisuals(); 
         });
 
         socket.on('error_message', function(data) { 
