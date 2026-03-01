@@ -942,6 +942,42 @@
             logsDiv.scrollTop = logsDiv.scrollHeight; // Auto-scroll to bottom
         });
         
+        // ==========================================
+        // --- GAME OVER & PLAY AGAIN LOGIC ---
+        // ==========================================
+        socket.on('game_over_event', function(data) {
+            document.getElementById('scoreboard-modal').style.display = 'flex';
+            
+            var thElements = document.querySelectorAll("#score-table th");
+            thElements.forEach(th => {
+                if (data.winner_names.some(winnerName => th.innerText.includes(winnerName))) {
+                    th.innerHTML = "<span style='font-size: 24px;'>👑</span><br>" + th.innerHTML;
+                    th.style.background = "gold";
+                    th.style.color = "black";
+                    th.style.border = "3px solid #b8860b";
+                    th.style.boxShadow = "0px 0px 15px gold";
+                }
+            });
+            
+            var btn = document.getElementById('scoreboard-close-btn');
+            btn.innerText = "🎮 PLAY AGAIN 🎮";
+            btn.style.background = "#4CAF50"; // Bright Green
+            btn.style.color = "white";
+            
+            btn.onclick = function() {
+                socket.emit('play_again_vote');
+                btn.innerText = "Waiting for others to vote...";
+                btn.disabled = true;
+                btn.style.background = "#555";
+                btn.style.cursor = "not-allowed";
+            };
+        });
+
+        // Listen for the server to reset everyone
+        socket.on('force_reload', function() {
+            window.location.reload(); // Instantly refreshes the browser for everyone!
+        });
+
         window.addEventListener('resize', resizeGame);
     </script>
 </body>

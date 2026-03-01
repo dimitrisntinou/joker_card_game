@@ -13,6 +13,7 @@ socketio = SocketIO(app, async_mode='eventlet')
 
 # Initialize the Game Engine
 game = JokerGame()
+play_again_votes = set()
 
 @app.route('/')
 def index():
@@ -272,7 +273,7 @@ def handle_play_card(data):
     if result_data:
         winner = result_data['winner']
         is_round_over = result_data['round_over']
-        
+
         socketio.sleep(1.5)
         
         broadcast_scores() 
@@ -298,10 +299,6 @@ def handle_play_card(data):
             
         else:
             emit('update_turn_indicator', {'sid': winner['sid'], 'name': winner['name']}, broadcast=True)
-            emit('your_turn_to_play', {
-                'is_leader': True, 
-                'valid_indices': game.get_valid_moves(winner['sid'])
-            }, room=winner['sid'])
     else:
         next_sid = game.get_current_bidder_id()
         next_name = game.players[next_sid]['name']
@@ -313,6 +310,7 @@ def handle_play_card(data):
 
 
 # --- WAITING FOR PLAYERS TO CLOSE SCOREBOARD ---
+# --- WAITING FOR PLAYERS TO CLOSE SCOREBOARD ---
 @socketio.on('ready_next_round')
 def handle_ready_next_round():
     sid = request.sid
@@ -321,30 +319,43 @@ def handle_ready_next_round():
     player_name = game.players[sid]['name']
     emit('log_message', {'msg': f"✔️ {player_name} is ready."}, broadcast=True)
     
+    # If all players have clicked ready, check what to do next!
     if len(game.ready_for_next_round) == len(game.players):
-        game.ready_for_next_round.clear()
+        game.ready_for_next_round.clear() # Reset for next time
         
         phase_status = game.start_new_round()
-        
+        broadcast_scores() 
+
+        # ---> THE NEW GAME OVER & TIE BREAKER LOGIC <---
         if phase_status == "GAME_OVER":
             ranked_players = sorted(game.players.values(), key=lambda p: p['score'], reverse=True)
-            winner = ranked_players[0]
+            highest_score = ranked_players[0]['score']
+            
+            # Find everyone who tied for 1st place
+            winners = [p for p in ranked_players if p['score'] == highest_score]
+            runners_up = [p for p in ranked_players if p['score'] < highest_score]
             
             emit('log_message', {'msg': "🏆 ----------------------- 🏆"}, broadcast=True)
             emit('log_message', {'msg': "GAME OVER! Final Results:"}, broadcast=True)
-            emit('log_message', {'msg': f"🥇 1st Place: {winner['name']} ({winner['score']} pts)"}, broadcast=True)
             
+            winner_names = []
+            for w in winners:
+                emit('log_message', {'msg': f"🥇 1st Place: {w['name']} ({w['score']} pts)"}, broadcast=True)
+                winner_names.append(w['name'])
+                
             medals = ["🥈 2nd Place", "🥉 3rd Place", "💀 4th Place"]
-            for i in range(1, len(ranked_players)):
-                player = ranked_players[i]
-                emit('log_message', {'msg': f"{medals[i-1]}: {player['name']} ({player['score']} pts)"}, broadcast=True)
+            for i, p in enumerate(runners_up):
+                medal = medals[i] if i < len(medals) else "💀 4th Place"
+                emit('log_message', {'msg': f"{medal}: {p['name']} ({p['score']} pts)"}, broadcast=True)
                 
             emit('log_message', {'msg': "🏆 ----------------------- 🏆"}, broadcast=True)
-            return
+            
+            # Send the LIST of winners to the frontend
+            emit('game_over_event', {
+                'winner_names': winner_names
+            }, broadcast=True)
 
-        broadcast_scores() 
-
-        if phase_status == "DECLARING":
+        elif phase_status == "DECLARING":
             leader_sid = game.get_current_bidder_id()
             leader_name = game.players[leader_sid]['name']
             
@@ -355,8 +366,6 @@ def handle_ready_next_round():
                 'max_bid': 9
             }, room=leader_sid)
             emit('your_turn_to_declare', {}, room=leader_sid)
-            
-            # ---> ADDED: Tell everyone WHO is declaring! <---
             emit('update_turn_indicator', {'sid': leader_sid, 'name': leader_name}, broadcast=True)
             
         else:
@@ -372,9 +381,28 @@ def handle_ready_next_round():
                 }, room=pid)
                 
             emit('your_turn_to_bid', {'forbidden': game.get_forbidden_bid(first_bidder_sid)}, room=first_bidder_sid)
-            
-            # ---> ADDED: Tell everyone WHO is bidding! <---
             emit('update_turn_indicator', {'sid': first_bidder_sid, 'name': first_bidder_name}, broadcast=True)
+
+@socketio.on('play_again_vote')
+def handle_play_again():
+    global game  # <--- Moved to the very top!
+    
+    sid = request.sid
+    play_again_votes.add(sid)
+    
+    name = game.players.get(sid, {}).get('name', 'Player')
+    emit('log_message', {'msg': f"🔄 {name} voted to Play Again!"}, broadcast=True)
+    
+    # If all 4 players click the button...
+    if len(play_again_votes) >= len(game.players):
+        game = JokerGame() # Completely wipes the server's game engine clean!
+        play_again_votes.clear()
+        
+        emit('log_message', {'msg': "Restarting game..."}, broadcast=True)
+        socketio.sleep(1)
+        
+        # Tell all browsers to refresh and rejoin!
+        emit('force_reload', {}, broadcast=True)
 
 @socketio.on('send_chat')
 def handle_chat(data):
