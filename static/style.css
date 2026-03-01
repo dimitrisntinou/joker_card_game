@@ -1,6 +1,6 @@
-/* frontend/style.css */
-
-/* 1. GLOBAL RESET */
+/* ==========================================
+   --- 1. BASE & SCREENS ---
+   ========================================== */
 html, body {
     width: 100%;
     height: 100%;
@@ -11,14 +11,12 @@ html, body {
     background: #222;
 }
 
-/* 2. LOGIN SCREEN */
 #login-screen {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
     background: #222; z-index: 9999; 
     display: flex; flex-direction: column; justify-content: center; align-items: center;
 }
 
-/* 3. GAME SCREEN */
 #game-screen {
     width: 100vw; height: 100vh;
     background: #2e8b57;
@@ -26,13 +24,40 @@ html, body {
     display: flex; align-items: center; justify-content: center;
 }
 
-/* --- TABLE ELEMENTS --- */
-.player-slot { text-align: center; color: white; text-shadow: 1px 1px 3px black; z-index: 5; }
-.avatar { width: 60px; height: 60px; background: #444; border: 2px solid gold; border-radius: 50%; margin: 0 auto 5px; line-height: 60px; font-weight: bold; }
+/* ==========================================
+   --- 2. PLAYER & AVATARS ---
+   ========================================== */
+.player-slot { 
+    text-align: center; 
+    color: white; 
+    text-shadow: 1px 1px 3px black; 
+    z-index: 5; 
+}
 
-#center-table { position: absolute; z-index: 1; }
+.avatar { 
+    width: 60px; 
+    height: 60px; 
+    background: #444; 
+    border: 2px solid gold; 
+    border-radius: 50%; 
+    margin: 0 auto 5px; 
+    line-height: 60px; 
+    font-weight: bold; 
+    transition: all 0.3s ease-in-out; /* Smooth glowing transition */
+}
 
-/* --- CARDS --- */
+/* Active Turn Indicator */
+.active-turn-glow {
+    box-shadow: 0 0 20px 5px lime !important;
+    border: 3px solid lime !important;
+    transform: scale(1.15);
+    color: white !important;
+    background-color: #1a5e20 !important; 
+}
+
+/* ==========================================
+   --- 3. CARDS & SPRITES ---
+   ========================================== */
 .card {
     width: 71px; height: 96px;
     background-image: url('images/cards_sprite.png');
@@ -52,7 +77,7 @@ html, body {
     border: 2px solid white; border-radius: 4px;
 }
 
-/* --- SPRITE MAPPINGS --- */
+/* Suit & Rank Positions */
 .suit-C { background-position-y: 0%; } .suit-S { background-position-y: 33.33%; }
 .suit-H { background-position-y: 66.66%; } .suit-D { background-position-y: 100%; }
 .rank-A { background-position-x: 0%; } .rank-2 { background-position-x: 8.33%; }
@@ -63,12 +88,38 @@ html, body {
 .rank-J { background-position-x: 83.33%; } .rank-Q { background-position-x: 91.66%; }
 .rank-K { background-position-x: 100%; }
 
-/* JOKERS */
+/* Jokers */
 .card-joker { background-color: white; background-size: contain; background-repeat: no-repeat; background-position: center; }
 .joker-red { background-image: url('images/joker_red.png') !important; }
 .joker-black { background-image: url('images/joker_black.png') !important; }
 
-/* --- PLAYED AREA --- */
+/* ==========================================
+   --- 4. TABLE & BOARD ELEMENTS ---
+   ========================================== */
+#center-table { position: absolute; z-index: 1; }
+
+#table-center {
+    position: absolute; top: 50%; left: 50%; width: 200px; height: 200px;
+    transform: translate(-50%, -50%); pointer-events: none;
+}
+
+.played-card-slot {
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    display: flex; justify-content: center; align-items: center;
+}
+
+.slot-bottom { bottom: 0; left: 60px; z-index: 10; }
+.slot-top    { top: 0; left: 60px; z-index: 5; }
+.slot-left   { left: 0; top: 45px; z-index: 8; }
+.slot-right  { right: 0; top: 45px; z-index: 8; }
+
+#trump-container {
+    position: absolute; left: 20px; top: 50%; transform: translateY(-50%);
+    text-align: center; border: 2px solid gold; padding: 10px;
+    background: rgba(0,0,0,0.3); border-radius: 10px;
+}
+
 #played-cards-area { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none; }
 #played-cards-area .card {
     position: absolute; width: 71px; height: 96px;
@@ -76,7 +127,21 @@ html, body {
     box-shadow: 2px 2px 10px rgba(0,0,0,0.5); z-index: auto;
 }
 
-/* ACE HUNT */
+/* Animations */
+.flying-card {
+    position: fixed; top: 50%; left: 50%; width: 60px; height: 90px;
+    background-color: #0b5e86; border: 2px solid #fff; border-radius: 6px;
+    background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.2) 5px, rgba(255,255,255,0.2) 10px);
+    z-index: 1000; transform: translate(-50%, -50%); 
+    transition: transform 0.4s ease-out, opacity 0.4s ease-in; pointer-events: none;
+}
+
+@keyframes dealReveal {
+    0% { transform: translateY(60px) rotateY(180deg) scale(0.6); opacity: 0; }
+    100% { transform: translateY(0) rotateY(0deg) scale(1); opacity: 1; }
+}
+.card-reveal { animation: dealReveal 0.4s ease-out forwards; }
+
 #ace-hunt-display { z-index: 50; }
 .ace-hunt-card {
     position: absolute; top: -40px; left: 50%;
@@ -84,8 +149,121 @@ html, body {
     box-shadow: 0 0 10px gold;
 }
 
+/* ==========================================
+   --- 5. MODALS (GENERAL) ---
+   ========================================== */
+.modal { 
+    display: none; position: fixed; z-index: 100; left: 0; top: 0; 
+    width: 100%; height: 100%; background-color: rgba(0,0,0,0.2);
+    align-items: center; justify-content: center; 
+}
+
+.modal-content { 
+    background-color: #fefefe; padding: 20px; border-radius: 10px; 
+    width: 300px; text-align: center; 
+}
+
+/* Offset Modals (Joker & Declaring) - Pushed to top left */
+#joker-modal, #declaring-modal {
+    background-color: transparent;
+    pointer-events: none; 
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 20px;
+}
+#joker-modal .modal-content, #declaring-modal .modal-content {
+    pointer-events: auto;
+    border: 3px solid gold;
+    box-shadow: 5px 5px 30px rgba(0,0,0,0.8);
+    background-color: rgba(255, 255, 255, 0.97);
+}
+
+/* Centered Bidding Modal */
+#bidding-modal {
+    position: fixed !important; top: 0 !important; left: 0 !important;
+    width: 100vw !important; height: 100vh !important;
+    justify-content: center !important; align-items: center !important;
+    z-index: 10000 !important; background-color: rgba(0,0,0,0.2) !important;
+}
+#bidding-modal .modal-content {
+    position: relative !important; margin: auto !important;
+    transform: none !important; top: auto !important; left: auto !important;
+    box-shadow: 0px 0px 30px rgba(255, 215, 0, 0.5) !important;
+}
+
+.bid-btn { 
+    background-color: gold; border: none; padding: 10px 15px; margin: 5px; 
+    cursor: pointer; font-weight: bold; font-size: 16px; border-radius: 5px; 
+}
+.bid-btn:hover { background-color: #ffd700; transform: scale(1.1); }
+
+/* ==========================================
+   --- 6. JOKER MODAL READABILITY FIXES ---
+   ========================================== */
+.joker-section { margin: 10px 0; border-radius: 8px; }
+
+.joker-section .mode-title {
+    color: white !important; font-weight: bold !important; font-size: 20px !important;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.9) !important; margin-bottom: 15px !important;
+    text-align: center !important; letter-spacing: 1px !important;
+}
+
+.mode-take {
+    background-color: #1b5e20 !important; padding: 15px !important;
+    border-radius: 8px !important; margin-bottom: 15px !important; border: 2px solid #2e7d32 !important;
+}
+
+.mode-give {
+    background-color: #b71c1c !important; padding: 15px !important;
+    border-radius: 8px !important; margin-bottom: 10px !important; border: 2px solid #c62828 !important;
+}
+
+.joker-btn { 
+    padding: 8px 12px; margin: 4px; border: none; cursor: pointer; 
+    font-weight: bold; border-radius: 4px; font-size: 14px; 
+}
+
+.btn-NT { background-color: gold !important; color: black !important; font-weight: bold !important; border: 1px solid #b8860b !important; }
+.btn-H, .btn-D, .btn-C, .btn-S { color: white !important; font-weight: bold !important; text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6) !important; }
+.btn-H { background: #ff5555; } 
+.btn-D { background: #ff5555; } 
+.btn-S { background: #333; } 
+.btn-C { background: #333; } 
+.joker-btn:disabled { background: #ccc !important; color: #666 !important; cursor: not-allowed; opacity: 0.5; }
+
+/* ==========================================
+   --- 7. SCOREBOARD & POINTS ---
+   ========================================== */
+.points-label { font-size: 18px; color: gold; font-weight: bold; text-shadow: 1px 1px 2px black; margin-bottom: 5px; }
+.score-text { font-size: 28px; font-weight: bold; text-shadow: 2px 2px 4px black; letter-spacing: 2px; margin-top: 5px; }
+.score-white { color: white; } .score-green { color: #00ff00; } .score-red { color: #ff3333; }
+
+.premia-mark { font-size: 16px; margin-left: 5px; vertical-align: middle; text-shadow: none; }
+
+#scoreboard-modal .modal-content {
+    width: 600px; max-height: 80vh; overflow-y: auto; background: #fdfdfd; color: black;
+}
+.score-table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 16px; }
+.score-table th, .score-table td { border: 2px solid black; padding: 8px; text-align: center; width: 25%; }
+.score-table th { background: #eee; font-size: 18px; }
+.phase-total-row td { border-top: 4px solid black; font-weight: bold; background: #e6e6e6; }
+.score-cell { display: flex; justify-content: space-between; align-items: center; }
+
+/* ==========================================
+   --- 8. CHAT SYSTEM ---
+   ========================================== */
+#chat-wrapper {
+    position: fixed; /* Ensures it stays locked to the bottom left window */
+    bottom: 20px;
+    left: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    pointer-events: none;
+}
+
 #logs {
-    /* Notice we removed absolute, bottom, and left from here! */
     width: 250px; 
     height: 200px; 
     overflow-y: auto; 
@@ -94,228 +272,18 @@ html, body {
     padding: 10px; 
     font-size: 14px; 
     border-radius: 8px;
-    pointer-events: auto; /* Keeps the box scrollable */
+    pointer-events: auto;
 }
 
-/* --- MODALS --- */
-.modal { 
-    display: none; 
-    position: fixed; 
-    z-index: 100; 
-    left: 0; 
-    top: 0; 
-    width: 100%; 
-    height: 100%; 
-    background-color: rgba(0,0,0,0.2); /* Changed from 0.8 to 0.2 to see the cards */
-    align-items: center; 
-    justify-content: center; 
-}
-
-.modal-content { 
-    background-color: #fefefe; 
-    padding: 20px; 
-    border-radius: 10px; 
-    width: 300px; 
-    text-align: center; 
-}
-
-.bid-btn { 
-    background-color: gold; 
-    border: none; 
-    padding: 10px 15px; 
-    margin: 5px; 
-    cursor: pointer; 
-    font-weight: bold; 
-    font-size: 16px; 
-    border-radius: 5px; 
-}
-
-.bid-btn:hover { 
-    background-color: #ffd700; 
-    transform: scale(1.1); 
-}
-
-/* --- SCORES --- */
-.points-label { font-size: 18px; color: gold; font-weight: bold; text-shadow: 1px 1px 2px black; margin-bottom: 5px; }
-.score-text { font-size: 28px; font-weight: bold; text-shadow: 2px 2px 4px black; letter-spacing: 2px; margin-top: 5px; }
-.score-white { color: white; } .score-green { color: #00ff00; } .score-red { color: #ff3333; }
-
-/* --- PREMIA CHECKMARK BOX --- */
-.premia-mark {
-    font-size: 16px;
-    margin-left: 5px;
-    vertical-align: middle;
-    text-shadow: none; /* Keeps the emoji crisp */
-}
-
-/* --- SCOREBOARD PAPER UI --- */
-#scoreboard-modal .modal-content {
-    width: 600px;
-    max-height: 80vh;
-    overflow-y: auto;
-    background: #fdfdfd; /* Paper color */
-    color: black;
-}
-.score-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-family: monospace; /* Looks more like written numbers */
-    font-size: 16px;
-}
-.score-table th, .score-table td {
-    border: 2px solid black;
-    padding: 8px;
-    text-align: center;
-    width: 25%;
-}
-.score-table th {
-    background: #eee;
-    font-size: 18px;
-}
-.phase-total-row td {
-    border-top: 4px solid black; /* Thick line for Phase Totals */
-    font-weight: bold;
-    background: #e6e6e6;
-}
-.score-cell {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-/* Container for the 4 played cards in the middle */
-#table-center {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 200px;
-    height: 200px;
-    transform: translate(-50%, -50%);
-    pointer-events: none; /* Let clicks pass through */
-}
-
-/* Specific slots for each player's played card */
-.played-card-slot {
-    border: 1px dashed rgba(255, 255, 255, 0.1); /* Optional: shows you where the card will land */
-    border-radius: 8px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.slot-bottom { bottom: 0; left: 60px; z-index: 10; }
-.slot-top    { top: 0; left: 60px; z-index: 5; }
-.slot-left   { left: 0; top: 45px; z-index: 8; }
-.slot-right  { right: 0; top: 45px; z-index: 8; }
-
-/* Move the Trump (Kozer) to a formal side position */
-#trump-container {
-    position: absolute;
-    left: 20px;
-    top: 50%;
-    transform: translateY(-50%);
-    text-align: center;
-    border: 2px solid gold;
-    padding: 10px;
-    background: rgba(0,0,0,0.3);
-    border-radius: 10px;
-}
-
-/* The temporary card used just for the animation */
-.flying-card {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    width: 60px;  /* Adjust to match your actual card width */
-    height: 90px; /* Adjust to match your actual card height */
-    background-color: #0b5e86; /* Color of your card back */
-    border: 2px solid #fff;
-    border-radius: 6px;
-    background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.2) 5px, rgba(255,255,255,0.2) 10px);
-    z-index: 1000;
-    
-    /* Center the origin point */
-    transform: translate(-50%, -50%); 
-    
-    /* The magic that makes it slide smoothly */
-    transition: transform 0.4s ease-out, opacity 0.4s ease-in; 
-    pointer-events: none; /* So it doesn't block clicks */
-}
-
-/* 3D Flip animation for when you pick up your real cards */
-@keyframes dealReveal {
-    0% { transform: translateY(60px) rotateY(180deg) scale(0.6); opacity: 0; }
-    00% { transform: translateY(0) rotateY(0deg) scale(1); opacity: 1; }
-}
-.card-reveal {
-    animation: dealReveal 0.4s ease-out forwards;
-}
-
-.joker-section { margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
-.joker-btn { padding: 8px 12px; margin: 4px; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; font-size: 14px; color: white; }
-.btn-H { background: #ff5555; } .btn-D { background: #ff5555; } 
-.btn-S { background: #333; } .btn-C { background: #333; } 
-.btn-NT { background: gold; color: black; }
-.joker-btn:disabled { background: #ccc !important; color: #666 !important; cursor: not-allowed; opacity: 0.5; }
-.mode-title { font-size: 18px; font-weight: bold; margin-bottom: 5px; color: #333; }
-.mode-take { background: green; color: white; border: none; }
-.mode-give { background: red; color: white; border: none; }
-#joker-options-follow button.mode-take,
-#joker-options-follow button.mode-give {
-    color: white;
-}
-div.mode-take button, div.mode-give button {
-    color: white;
-}
-
-/* Move gameplay modals to the Top-Left corner so they never block the table */
-#joker-modal, #bidding-modal, #declaring-modal {
-    background-color: transparent; /* Removes the dark dimming background */
-    pointer-events: none; /* Lets you see and click through the empty space */
-    align-items: flex-start; /* Moves to the Top */
-    justify-content: flex-start; /* Moves to the Left */
-    padding: 20px;
-}
-
-#joker-modal .modal-content, #bidding-modal .modal-content, #declaring-modal .modal-content {
-    pointer-events: auto; /* Keeps the actual white box clickable */
-    border: 3px solid gold;
-    box-shadow: 5px 5px 30px rgba(0,0,0,0.8);
-    background-color: rgba(255, 255, 255, 0.97); /* Very slight transparency */
-}
-
-#chat-wrapper {
-    position: absolute;
-    bottom: 20px;
-    left: 20px;
-    z-index: 200;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    pointer-events: none; /* Lets clicks pass through the empty space around it */
-}
-
-#chat-form {
-    display: flex;
-    gap: 5px;
-    pointer-events: auto; /* Makes the typing bar clickable */
-}
+#chat-form { display: flex; gap: 5px; pointer-events: auto; }
 
 #chat-input {
-    flex-grow: 1;
-    padding: 6px;
-    border-radius: 4px;
-    border: 1px solid #777;
-    background: rgba(0,0,0,0.8);
-    color: white;
-    outline: none;
+    flex-grow: 1; padding: 6px; border-radius: 4px;
+    border: 1px solid #777; background: rgba(0,0,0,0.8);
+    color: white; outline: none;
 }
 
 #chat-send {
-    padding: 6px 12px;
-    background: gold;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
+    padding: 6px 12px; background: gold; border: none;
+    border-radius: 4px; cursor: pointer; font-weight: bold;
 }

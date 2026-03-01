@@ -38,19 +38,12 @@ def broadcast_scores():
             'premia': game.premia_eligible.get(sid, True)
         })
 
-    # THIS IS THE PART THAT WAS MISSING:
     emit('update_scores', {
         'scores': score_data,
         'history': game.score_history, # Send the scoreboard data
         'turn_order': game.turn_order  # Keep columns in correct order
     }, broadcast=True)
         
-    emit('update_scores', {
-        'scores': score_data,
-        'history': game.score_history, # Send the full table history
-        'turn_order': game.turn_order  # Send the order to make columns match
-    }, broadcast=True)
-
 @socketio.on('join_game')
 def handle_join(data):
     username = data['username']
@@ -71,7 +64,6 @@ def handle_join(data):
         # Tell the table about the ID swap
         players_list = [{'sid': pid, 'name': game.players[pid]['name']} for pid in game.turn_order]
         emit('update_player_list', {'players': players_list}, broadcast=True)
-        
         
         # Send the "care package" to instantly redraw their screen
         state_data = game.get_reconnect_state(sid)
@@ -94,7 +86,7 @@ def handle_join(data):
         emit('log_message', {'msg': f"🔄 {username} reconnected!"}, broadcast=True)
         return
 
-    # 2. BRAND NEW PLAYER LOGIC (Your original code!)
+    # 2. BRAND NEW PLAYER LOGIC 
     if game.add_player(sid, username):
         emit('your_id', {'sid': sid}, room=sid)
         players_list = [{'sid': pid, 'name': game.players[pid]['name']} for pid in game.turn_order]
@@ -103,7 +95,6 @@ def handle_join(data):
         if len(players_list) == 4:
             emit('enable_ready_btn', {}, broadcast=True)
     else:
-        # Just a safe fallback in case a 5th person tries to join
         emit('error_message', {'msg': "Game is already full!"}, room=sid)
 
 # --- READY & ACE HUNT ---
@@ -125,7 +116,7 @@ def handle_start_round():
     # Clear old scores immediately
     broadcast_scores() 
 
-   # CASE A: SPECIAL 9-CARD ROUND (DECLARATION)
+    # CASE A: SPECIAL 9-CARD ROUND (DECLARATION)
     if phase_status == "DECLARING":
         leader_sid = game.get_current_bidder_id()
         leader_name = game.players[leader_sid]['name']
@@ -143,7 +134,10 @@ def handle_start_round():
         # 2. Trigger the Declaration Modal for Leader ONLY
         emit('your_turn_to_declare', {}, room=leader_sid)
         
-        # 3. --- NEW: Tell everyone else to wait! ---
+        # ---> ADDED: Tell everyone else WHO is declaring! <---
+        emit('update_turn_indicator', {'sid': leader_sid, 'name': leader_name}, broadcast=True)
+        
+        # 3. Tell everyone else to wait
         emit('wait_for_declare', {
             'leader_name': leader_name, 
             'leader_sid': leader_sid
@@ -161,22 +155,26 @@ def handle_start_round():
             'max_bid': game.cards_to_deal
         }, room=pid)
     
-    emit('your_turn_to_bid', {'forbidden': game.get_forbidden_bid(first_bidder_sid)}, room=first_bidder_sid)
     bidder_name = game.players[first_bidder_sid]['name']
+    emit('your_turn_to_bid', {'forbidden': game.get_forbidden_bid(first_bidder_sid)}, room=first_bidder_sid)
+    
+    # ---> ADDED: Tell everyone WHO is bidding! <---
+    emit('update_turn_indicator', {'sid': first_bidder_sid, 'name': bidder_name}, broadcast=True)
+    
     emit('log_message', {'msg': f"Round {game.round_number}. {bidder_name} bids first."}, broadcast=True)
 
 # --- NEW: HANDLE DECLARATION RESPONSE ---
 @socketio.on('declare_trump')
 def handle_declaration(data):
     suit = data['suit']
-    # 1. Update Engine (Set Trump, Deal remaining 6 cards to leader, 9 to others)
+    # 1. Update Engine (Set Trump, Deal remaining cards)
     game.set_trump_and_deal(suit)
     
     # 2. Notify everyone of the Trump choice
     trump_display = "NO TRUMP" if suit == 'NT' else f"{suit} TRUMP"
     emit('log_message', {'msg': f"Trump declared: {trump_display}"}, broadcast=True)
     
-    # 3. Refresh everyone's screen with full hands and the chosen trump card
+    # 3. Refresh everyone's screen with full hands
     for pid in game.players:
         emit('new_round', {
             'hand': game.players[pid]['hand'],
@@ -187,7 +185,12 @@ def handle_declaration(data):
         
     # 4. Start Bidding normally
     first_bidder_sid = game.get_current_bidder_id()
+    first_bidder_name = game.players[first_bidder_sid]['name']
+    
     emit('your_turn_to_bid', {'forbidden': game.get_forbidden_bid(first_bidder_sid)}, room=first_bidder_sid)
+    
+    # ---> ADDED: Tell everyone WHO is bidding! <---
+    emit('update_turn_indicator', {'sid': first_bidder_sid, 'name': first_bidder_name}, broadcast=True)
 
 # --- BIDDING ---
 @socketio.on('player_bid')
@@ -213,7 +216,12 @@ def handle_bid(data):
         emit('your_turn_to_play', {'is_leader': True}, room=first_player_sid)
     else:
         next_sid = game.get_current_bidder_id()
+        next_name = game.players[next_sid]['name']
+        
         emit('your_turn_to_bid', {'forbidden': game.get_forbidden_bid(next_sid)}, room=next_sid)
+        
+        # ---> ADDED: Tell everyone WHO is bidding next! <---
+        emit('update_turn_indicator', {'sid': next_sid, 'name': next_name}, broadcast=True)
 
 # --- PLAYING CARDS ---
 @socketio.on('play_card')
@@ -239,8 +247,6 @@ def handle_play_card(data):
     # --- JOKER ANNOUNCEMENT BLOCK ---
     if result.get('rank') == 'Joker':
         player_name = game.players[sid]['name']
-        
-        # Translate the raw data into a nice readable format
         if joker_action:
             action_word = "WANTS TO TAKE" if joker_action == "TAKE" else "WANTS TO GIVE"
             suit_word = joker_suit
@@ -292,8 +298,6 @@ def handle_play_card(data):
             
         else:
             emit('update_turn_indicator', {'sid': winner['sid'], 'name': winner['name']}, broadcast=True)
-            
-            # ---> NEW: SEND VALID CARDS TO THE TRICK WINNER <---
             emit('your_turn_to_play', {
                 'is_leader': True, 
                 'valid_indices': game.get_valid_moves(winner['sid'])
@@ -302,8 +306,6 @@ def handle_play_card(data):
         next_sid = game.get_current_bidder_id()
         next_name = game.players[next_sid]['name']
         emit('update_turn_indicator', {'sid': next_sid, 'name': next_name}, broadcast=True)
-        
-        # ---> NEW: SEND VALID CARDS TO THE NEXT PLAYER <---
         emit('your_turn_to_play', {
             'is_leader': False, 
             'valid_indices': game.get_valid_moves(next_sid)
@@ -319,25 +321,19 @@ def handle_ready_next_round():
     player_name = game.players[sid]['name']
     emit('log_message', {'msg': f"✔️ {player_name} is ready."}, broadcast=True)
     
-    # If all players have clicked ready, start the next round!
     if len(game.ready_for_next_round) == len(game.players):
-        game.ready_for_next_round.clear() # Reset for next time
+        game.ready_for_next_round.clear()
         
-        # --- (This is where the new round logic actually belongs!) ---
         phase_status = game.start_new_round()
         
         if phase_status == "GAME_OVER":
-            # 1. Sort all players by their total score (highest to lowest)
             ranked_players = sorted(game.players.values(), key=lambda p: p['score'], reverse=True)
-            
             winner = ranked_players[0]
             
-            # 2. Announce the results in the chat!
             emit('log_message', {'msg': "🏆 ----------------------- 🏆"}, broadcast=True)
             emit('log_message', {'msg': "GAME OVER! Final Results:"}, broadcast=True)
             emit('log_message', {'msg': f"🥇 1st Place: {winner['name']} ({winner['score']} pts)"}, broadcast=True)
             
-            # Announce the runners-up
             medals = ["🥈 2nd Place", "🥉 3rd Place", "💀 4th Place"]
             for i in range(1, len(ranked_players)):
                 player = ranked_players[i]
@@ -350,6 +346,8 @@ def handle_ready_next_round():
 
         if phase_status == "DECLARING":
             leader_sid = game.get_current_bidder_id()
+            leader_name = game.players[leader_sid]['name']
+            
             emit('new_round', {
                 'hand': game.players[leader_sid]['hand'],
                 'trump': {'rank': '?', 'suit': '?', 'value': '??'},
@@ -357,8 +355,14 @@ def handle_ready_next_round():
                 'max_bid': 9
             }, room=leader_sid)
             emit('your_turn_to_declare', {}, room=leader_sid)
+            
+            # ---> ADDED: Tell everyone WHO is declaring! <---
+            emit('update_turn_indicator', {'sid': leader_sid, 'name': leader_name}, broadcast=True)
+            
         else:
             first_bidder_sid = game.get_current_bidder_id()
+            first_bidder_name = game.players[first_bidder_sid]['name']
+            
             for pid in game.players:
                 emit('new_round', {
                     'hand': game.players[pid]['hand'],
@@ -366,8 +370,11 @@ def handle_ready_next_round():
                     'round_number': game.round_number,
                     'max_bid': game.cards_to_deal
                 }, room=pid)
+                
             emit('your_turn_to_bid', {'forbidden': game.get_forbidden_bid(first_bidder_sid)}, room=first_bidder_sid)
-            emit('your_turn_to_play', {'is_leader': True}, room=first_bidder_sid)
+            
+            # ---> ADDED: Tell everyone WHO is bidding! <---
+            emit('update_turn_indicator', {'sid': first_bidder_sid, 'name': first_bidder_name}, broadcast=True)
 
 @socketio.on('send_chat')
 def handle_chat(data):
@@ -382,7 +389,4 @@ if __name__ == '__main__':
     print("🃏 JOKER SERVER IS STARTING...")
     print("🌍 Play locally at: http://localhost:7860")
     print("=========================================")
-    
-    # debug=True brings back your terminal logs!
-    # allow_unsafe_werkzeug=True prevents a common crash when using debug mode with Socket.IO
     socketio.run(app, host='0.0.0.0', port=7860, debug=True, allow_unsafe_werkzeug=True)

@@ -265,6 +265,40 @@
             btn.innerText = "READY!"; btn.disabled = true; btn.style.background = "#4CAF50"; 
         }
 
+        // ==========================================
+        // --- VISUAL TURN INDICATOR ---
+        // ==========================================
+        function highlightActivePlayer(activeSid) {
+            // 1. Remove the glow from everyone first
+            ["bottom", "top", "left", "right"].forEach(pos => {
+                var slot = document.getElementById("player-" + pos);
+                if (slot) {
+                    var avatar = slot.querySelector(".avatar");
+                    if (avatar) avatar.classList.remove("active-turn-glow");
+                }
+            });
+
+            // 2. If no one is active (like during animations), stop here
+            if (!activeSid) return;
+            
+            // 3. Find the active player and make them glow!
+            var pIndex = allPlayers.findIndex(p => p.sid === activeSid);
+            if (pIndex !== -1) {
+                var relIndex = (pIndex - myIndex + 4) % 4; 
+                var pos = "";
+                if (relIndex === 0) pos = "bottom";
+                else if (relIndex === 1) pos = "left";
+                else if (relIndex === 2) pos = "top";
+                else if (relIndex === 3) pos = "right";
+
+                var targetSlot = document.getElementById("player-" + pos);
+                if (targetSlot) {
+                    var targetAvatar = targetSlot.querySelector(".avatar");
+                    if (targetAvatar) targetAvatar.classList.add("active-turn-glow");
+                }
+            }
+        }
+
         function dealSingleCard(targetPosition) {
             // 1. Create the dummy card element
             var card = document.createElement('div');
@@ -306,6 +340,7 @@
         }
 
         socket.on('your_turn_to_declare', function() {
+            highlightActivePlayer(mySid);
             document.getElementById("declaring-modal").style.display = "flex";
         });
         function declareTrump(suit) {
@@ -365,6 +400,7 @@
         });
 
         socket.on('new_round', function(data) {
+            highlightActivePlayer(null);
             document.getElementById("waiting-banner").style.display = "none";
             currentLeadSuit = null;
             currentTrumpSuit = (data.trump.suit === 'NT') ? null : data.trump.suit;
@@ -400,6 +436,7 @@
         socket.on('your_turn_to_bid', function(data) {
             // Wait for the dealer to finish dealing the cards!
             setTimeout(() => {
+                highlightActivePlayer(mySid);
                 var container = document.getElementById("bid-buttons-container");
                 container.innerHTML = ""; 
                 
@@ -444,6 +481,7 @@
                 document.getElementById("my-hand").style.borderTop = "none";
                 updateHandVisuals(); // Remove highlights when not your turn
             }
+            highlightActivePlayer(data.sid);
             document.getElementById("logs").innerHTML += `<div>${data.name}'s turn...</div>`;
             var logs = document.getElementById("logs"); logs.scrollTop = logs.scrollHeight;
         });
@@ -655,6 +693,7 @@
         }
 
         socket.on('show_end_round_scoreboard', function() {
+            highlightActivePlayer(null);
             waitingForNextRound = true;
             document.getElementById('scoreboard-close-btn').innerText = "Ready for Next Round";
             document.getElementById('scoreboard-close-btn').style.background = "gold"; 
