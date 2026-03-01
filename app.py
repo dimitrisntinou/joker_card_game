@@ -214,7 +214,12 @@ def handle_bid(data):
         first_player_sid = game.get_current_bidder_id()
         first_name = game.players[first_player_sid]['name']
         emit('update_turn_indicator', {'sid': first_player_sid, 'name': first_name}, broadcast=True)
-        emit('your_turn_to_play', {'is_leader': True}, room=first_player_sid)
+        
+        # ---> THE FIX: Include valid_indices so the first player can actually click a card! <---
+        emit('your_turn_to_play', {
+            'is_leader': True,
+            'valid_indices': game.get_valid_moves(first_player_sid)
+        }, room=first_player_sid)
     else:
         next_sid = game.get_current_bidder_id()
         next_name = game.players[next_sid]['name']
@@ -299,6 +304,12 @@ def handle_play_card(data):
             
         else:
             emit('update_turn_indicator', {'sid': winner['sid'], 'name': winner['name']}, broadcast=True)
+            
+            # ---> THE MISSING COMMAND: Tell the trick winner to play their next card! <---
+            emit('your_turn_to_play', {
+                'is_leader': True, 
+                'valid_indices': game.get_valid_moves(winner['sid'])
+            }, room=winner['sid'])
     else:
         next_sid = game.get_current_bidder_id()
         next_name = game.players[next_sid]['name']

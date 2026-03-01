@@ -74,11 +74,20 @@ class JokerGame:
         }
 
     def add_player(self, sid, name):
-        if len(self.players) < 4:
-            self.players[sid] = {"name": name, "hand": [], "score": 0}
-            self.turn_order.append(sid)
-            return True
-        return False
+        # 1. The Bouncer: Stop if the table is already full!
+        if len(self.turn_order) >= 4:
+            return False
+            
+        # 2. THE FIX: Stop if this exact name is ALREADY sitting at the table!
+        # This prevents the double-login bug if the browser glitches and sends two requests.
+        for existing_player in self.players.values():
+            if existing_player['name'] == name:
+                return False 
+                
+        # 3. If they pass the checks, give them a seat!
+        self.players[sid] = {'name': name, 'score': 0, 'hand': []}
+        self.turn_order.append(sid)
+        return True
 
     def mark_ready(self, sid):
         self.ready_players.add(sid)

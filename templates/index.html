@@ -72,10 +72,10 @@
                     <div id="my-hand" style="display: flex; justify-content: center; gap: -20px;"></div>
                     
                     <div class="points-label" style="margin-left: 20px; white-space: nowrap;">
+                        <div id="name-bottom" style="color: white; font-size: 18px; margin-bottom: 5px; text-shadow: 1px 1px 3px black;">Waiting...</div>
                         <span id="points-bottom">Points: 0</span> 
                         <span id="premia-bottom" class="premia-mark"></span>
                     </div>
-                    
                 </div>
                 <div id="bid-score-bottom" class="score-text" style="margin-top: 5px;"></div>
             </div>
@@ -150,7 +150,7 @@
     </div>
 
     <script>
-        var socket = io();
+        var socket = io({ transports: ['websocket', 'polling'] });
         var mySid = "";
         var myIndex = -1;
         var allPlayers = [];
@@ -223,16 +223,69 @@
             handDiv.appendChild(el);
         }
 
+        window.onload = function() {
+            var savedName = sessionStorage.getItem("joker_username");
+            if (savedName) {
+                document.getElementById("username").value = savedName;
+            }
+        };
+
         socket.on('connect', function() {
             console.log("Connected to server!");
-            var savedName = sessionStorage.getItem("joker_username");
-            
-            if (savedName) {
-                // If we remember who you are, secretly send the join command!
-                socket.emit('join_game', {username: savedName});
-            }
+            // The auto-join trap has been permanently destroyed!
         });
-        socket.on('your_id', function(data) { mySid = data.sid; });
+
+        socket.on('your_id', function(data) { 
+            mySid = data.sid; 
+            updateTablePositions(); 
+        });
+
+        // 3. The bulletproof table drawing logic
+        function updateTablePositions() {
+            // Stop immediately if we are missing our ID or the player list!
+            if (!mySid || allPlayers.length === 0) {
+                return; 
+            }
+
+            myIndex = allPlayers.findIndex(p => p.sid === mySid);
+            
+            // If we aren't in the list yet (index -1), stop and wait!
+            if (myIndex === -1) {
+                return; 
+            }
+
+            // --- DRAW OURSELVES FIRST ---
+            let bottomName = document.getElementById("name-bottom");
+            if (bottomName) {
+                bottomName.innerText = allPlayers[myIndex].name;
+            }
+
+            // --- RESET ALL GUEST SEATS ---
+            let leftName = document.getElementById("name-left");
+            let topName = document.getElementById("name-top");
+            let rightName = document.getElementById("name-right");
+            
+            if (leftName) leftName.innerText = "Waiting...";
+            if (topName) topName.innerText = "Waiting...";
+            if (rightName) rightName.innerText = "Waiting...";
+
+            // --- CALCULATE GUEST SEATS ---
+            let leftIdx = (myIndex + 1) % 4; 
+            let topIdx = (myIndex + 2) % 4; 
+            let rightIdx = (myIndex + 3) % 4;
+            
+            // --- THE FIX: DRAW GUESTS IMMEDIATELY IF THEY EXIST! ---
+            if (allPlayers[leftIdx]) {
+                leftName.innerText = allPlayers[leftIdx].name;
+            }
+            if (allPlayers[topIdx]) {
+                topName.innerText = allPlayers[topIdx].name;
+            }
+            if (allPlayers[rightIdx]) {
+                rightName.innerText = allPlayers[rightIdx].name;
+            }
+        }
+
         socket.on('update_player_list', function(data) {
             allPlayers = data.players;
             myIndex = allPlayers.findIndex(p => p.sid === mySid);
@@ -245,9 +298,15 @@
         });
 
         function joinGame() {
-            var name = document.getElementById("username").value;
+            // 1. Trim away accidental spaces at the end of the name
+            var name = document.getElementById("username").value.trim(); 
+            
             if(name) {
-                // ---> NEW: Save the username to this specific tab's memory!
+                // 2. Freeze the button to physically prevent double-clicking!
+                var btn = document.querySelector("#login-screen button");
+                btn.disabled = true;
+                btn.innerText = "Joining...";
+
                 sessionStorage.setItem("joker_username", name);
 
                 socket.emit('join_game', {username: name});
@@ -404,6 +463,8 @@
             document.getElementById("waiting-banner").style.display = "none";
             currentLeadSuit = null;
             currentTrumpSuit = (data.trump.suit === 'NT') ? null : data.trump.suit;
+            myTurn = false;
+            myValidIndices = [];
             document.getElementById("waiting-banner").style.display = "none";
             document.getElementById("deck-pile").style.display = "block";
             document.getElementById("trump-card-slot").style.display = "block";
@@ -469,7 +530,7 @@
         socket.on('your_turn_to_play', function(data) {
             myTurn = true;
             isLeader = data.is_leader; 
-            myValidIndices = data.valid_indices || []; // <-- Capture valid cards from backend
+            myValidIndices = data.valid_indices ? data.valid_indices : [];
             document.getElementById("logs").innerHTML += "<div style='color:lime; font-weight:bold;'>YOUR TURN TO PLAY!</div>";
             document.getElementById("my-hand").style.borderTop = "4px solid lime";
             updateHandVisuals(); // <-- Use the new function
@@ -766,16 +827,18 @@
                 joker_action: action,
                 joker_suit: suit
             });
-            closeJokerModal();
+            // ---> FIX 3: Tell the modal we are PLAYING, not cancelling! <---
+            closeJokerModal(false); 
         }
 
-        function closeJokerModal() {
+        function closeJokerModal(isCancel = true) {
             document.getElementById("joker-modal").style.display = "none";
             pendingJokerIndex = -1;
             
-            // --- NEW FIX: Give the player their turn back if they cancel! ---
-            myTurn = true; 
-            updateHandVisuals(); 
+            if (isCancel) {
+                myTurn = true; 
+                updateHandVisuals(); 
+            }
         }
 
         socket.on('hand_update', function(data) {
@@ -788,8 +851,13 @@
 
         socket.on('error_message', function(data) { 
             alert(data.msg); 
-            // If the server rejected it, it's still your turn!
-            myTurn = true; 
+            
+            // ---> FIX 2: Only give the turn back if it actually IS their turn! <---
+            if (data.msg === "Not your turn!") {
+                myTurn = false;
+            } else {
+                myTurn = true; 
+            }
             updateHandVisuals();
         });
 
@@ -893,14 +961,6 @@
             });
             // Automatically apply correct visuals the moment the hand is drawn!
             updateHandVisuals(); 
-        }
-        
-        function updateTablePositions() {
-            if (myIndex === -1 || allPlayers.length < 2) return;
-            let leftIdx = (myIndex + 1) % 4; let topIdx = (myIndex + 2) % 4; let rightIdx = (myIndex + 3) % 4;
-            if (allPlayers[leftIdx]) document.getElementById("name-left").innerText = allPlayers[leftIdx].name;
-            if (allPlayers[topIdx]) document.getElementById("name-top").innerText = allPlayers[topIdx].name;
-            if (allPlayers[rightIdx]) document.getElementById("name-right").innerText = allPlayers[rightIdx].name;
         }
 
         function resizeGame() {
