@@ -287,3 +287,43 @@ html, body {
     padding: 6px 12px; background: gold; border: none;
     border-radius: 4px; cursor: pointer; font-weight: bold;
 }
+
+/* --- MOBILE CHAT FIX --- */
+        @media screen and (max-width: 800px) and (pointer: coarse) {
+            /* Turn chat into a sleek floating modal */
+            #chat-wrapper {
+                position: fixed !important;
+                top: 70px !important;
+                left: 5% !important;
+                width: 90% !important;
+                height: 350px !important;
+                background: rgba(0, 0, 0, 0.95) !important;
+                border: 2px solid gold;
+                border-radius: 10px;
+                z-index: 9999 !important;
+                box-shadow: 0px 10px 30px rgba(0,0,0,0.8);
+            }
+            #logs {
+                height: 290px !important;
+                overflow-y: auto !important;
+                padding: 10px;
+            }
+            #chat-form {
+                display: flex;
+                padding: 5px;
+                background: #222;
+                border-bottom-left-radius: 8px;
+                border-bottom-right-radius: 8px;
+            }
+            #chat-input {
+                flex-grow: 1;
+                /* CRUCIAL: 16px font stops iPhone from auto-zooming! */
+                font-size: 16px !important; 
+                padding: 10px !important;
+            }
+            #chat-send {
+                font-size: 16px !important;
+                padding: 10px 15px !important;
+                margin-left: 5px;
+            }
+        }

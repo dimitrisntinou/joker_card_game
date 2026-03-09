@@ -138,7 +138,7 @@
             <button onclick="closeJokerModal()" style="margin-top:10px; width:100%; padding:10px;">Cancel</button>
         </div>
     </div>
-
+    <button onclick="toggleChat()" style="position: absolute; top: 20px; left: 20px; z-index: 50; padding: 10px 15px; font-weight: bold; cursor: pointer; border-radius: 5px; background: #fff; border: 1px solid black; box-shadow: 2px 2px 5px rgba(0,0,0,0.5);">💬 Toggle Chat</button>
     <button onclick="openScoreboardManual()" style="position: absolute; top: 20px; right: 20px; z-index: 50; padding: 10px 15px; font-weight: bold; cursor: pointer; border-radius: 5px;">📜 View Scores</button>
     <div id="scoreboard-modal" class="modal">
         <div class="modal-content">
@@ -160,11 +160,15 @@
         var currentTrumpSuit = null; 
         var currentLeadSuit = null; 
         var myHandData = []; 
-        var myValidIndices = []; // <-- NEW: Stores the allowed cards from the backend
-        var currentDealDelay = 0; // NEW: Keeps track of how long the dealer takes to deal
+        var myValidIndices = [];
+        var currentDealDelay = 0;
         var isDealing = false;
+        var currentDealId = 0;
 
         function dealCardsLiveAction(hand) {
+            currentDealId++; 
+            let myDealId = currentDealId;
+            
             isDealing = true;
             document.getElementById("my-hand").innerHTML = ""; 
             
@@ -177,12 +181,14 @@
                 positions.forEach((pos) => {
                     // 1. Shoot the dummy card across the table
                     setTimeout(() => {
+                        if (myDealId !== currentDealId) return; // KILL GHOST
                         dealSingleCard(pos);
                     }, delay);
 
                     // 2. If the card was dealt to YOU, reveal the real card right as the dummy lands!
                     if (pos === "bottom") {
                         setTimeout(() => {
+                            if (myDealId !== currentDealId) return; // KILL GHOST
                             revealRealCard(hand[i], i);
                         }, delay + flightTime);
                     }
@@ -193,8 +199,8 @@
 
             currentDealDelay = delay + flightTime + 200; 
 
-
             setTimeout(() => {
+                if (myDealId !== currentDealId) return; // KILL GHOST
                 isDealing = false;
                 updateHandVisuals();
                 currentDealDelay = 0;
@@ -315,6 +321,9 @@
                 gameScreen.style.display = "flex"; 
                 document.getElementById("logs").style.display = "block"; 
                 setTimeout(resizeGame, 50);
+                if (window.innerWidth <= 800) {
+                    document.getElementById("chat-wrapper").style.display = "none";
+                }
             }
         }
         
@@ -364,8 +373,7 @@
             card.className = 'flying-card';
             document.body.appendChild(card);
 
-            // 2. Find where it needs to go (Use the points element as an anchor, or your player avatar)
-            // You might want to change "points-" to whatever ID holds the player's cards
+            // 2. Find where it needs to go
             var targetEl = document.getElementById("points-" + targetPosition); 
             if (!targetEl) {
                 card.remove();
@@ -392,16 +400,20 @@
             card.style.transform = `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(0.5)`;
             card.style.opacity = "0"; // Fade out as it reaches the player
 
-            // 6. Delete the temporary card after the animation finishes (0.4s = 400ms)
+            // 6. Delete the temporary card after the animation finishes
             setTimeout(() => {
                 card.remove();
             }, 400);
         }
 
         socket.on('your_turn_to_declare', function() {
-            highlightActivePlayer(mySid);
-            document.getElementById("declaring-modal").style.display = "flex";
+            // Wait for the dealer to finish giving you the 3 cards!
+            setTimeout(() => {
+                highlightActivePlayer(mySid);
+                document.getElementById("declaring-modal").style.display = "flex";
+            }, currentDealDelay);
         });
+
         function declareTrump(suit) {
             socket.emit('declare_trump', {suit: suit});
             document.getElementById("declaring-modal").style.display = "none";
@@ -462,7 +474,13 @@
             highlightActivePlayer(null);
             document.getElementById("waiting-banner").style.display = "none";
             currentLeadSuit = null;
-            currentTrumpSuit = (data.trump.suit === 'NT') ? null : data.trump.suit;
+        
+            if (data.trump.suit === 'NT' || data.trump.rank === 'Joker') {
+                currentTrumpSuit = null;
+            } else {
+                currentTrumpSuit = data.trump.suit;
+            }
+            
             myTurn = false;
             myValidIndices = [];
             document.getElementById("waiting-banner").style.display = "none";
@@ -471,7 +489,7 @@
             var tSlot = document.getElementById("trump-card-slot");
             var label = document.getElementById("trump-label");
             var suitChar = data.trump.suit; 
-            var symbol = ""; var color = "white";
+            var symbol = ""; var color = "white";   
             if (suitChar === 'H') { symbol = "♥"; color = "#ff5555"; } 
             else if (suitChar === 'D') { symbol = "♦"; color = "#ff5555"; } 
             else if (suitChar === 'C') { symbol = "♣"; color = "black"; }
@@ -732,8 +750,21 @@
                     if (rNum === 8 || rNum === 12 || rNum === 20 || rNum === 24) {
                         html += "<tr class='phase-total-row'>";
                         data.turn_order.forEach(sid => {
-                            var currentTotal = data.scores.find(s => s.sid === sid)?.total_score || 0;
-                            html += `<td>Total: ${currentTotal}</td>`;
+                            
+                            // ---> THE FIX: Calculate a Snapshot Total! <---
+                            let snapshotTotal = 0;
+                            
+                            // Loop through the history from round 1 up to this exact phase
+                            for (let i = 0; i <= index; i++) {
+                                let pastRound = data.history[i][sid];
+                                
+                                // Add the points (unless Premia deleted them!)
+                                if (pastRound && !pastRound.is_deleted) {
+                                    snapshotTotal += pastRound.points_earned;
+                                }
+                            }
+                            
+                            html += `<td>Total: ${snapshotTotal}</td>`;
                         });
                         html += "</tr>";
                     }
@@ -751,6 +782,24 @@
             document.getElementById('scoreboard-close-btn').innerText = "Close";
             document.getElementById('scoreboard-close-btn').style.background = "#efefef";
             document.getElementById('scoreboard-modal').style.display = 'flex';
+        }
+
+        // ==========================================
+        // --- MOBILE CHAT TOGGLE LOGIC ---
+        // ==========================================
+        function toggleChat() {
+            var chatBox = document.getElementById("chat-wrapper");
+            
+            // Toggle between hiding it and showing it
+            if (chatBox.style.display === "none") {
+                chatBox.style.display = "block"; // Show chat
+                
+                // Auto-scroll to the bottom of the messages when opened
+                var logsDiv = document.getElementById('logs');
+                logsDiv.scrollTop = logsDiv.scrollHeight; 
+            } else {
+                chatBox.style.display = "none"; // Hide chat
+            }
         }
 
         socket.on('show_end_round_scoreboard', function() {
@@ -804,10 +853,30 @@
             if (card.rank === 'Joker') {
                 pendingJokerIndex = index;
                 var modal = document.getElementById("joker-modal");
-                var trumpButtons = document.querySelectorAll(".btn-NT");
-                trumpButtons.forEach(btn => {
-                    btn.disabled = (currentTrumpSuit === null);
+                
+                // ---> THE FIX: Target ONLY the Joker modal buttons! <---
+                var jokerTrumpButtons = modal.querySelectorAll(".btn-NT");
+                
+                jokerTrumpButtons.forEach(btn => {
+                    if (currentTrumpSuit === null) {
+                        // NO TRUMP: Make the Kozer buttons dark, disabled, and unclickable
+                        btn.disabled = true;
+                        btn.style.background = "#333";
+                        btn.style.color = "#777";
+                        btn.style.border = "2px solid #222";
+                        btn.style.cursor = "not-allowed";
+                        btn.style.opacity = "0.6";
+                    } else {
+                        // TRUMP EXISTS: Restore the normal bright CSS styles
+                        btn.disabled = false;
+                        btn.style.background = ""; 
+                        btn.style.color = "";
+                        btn.style.border = "";
+                        btn.style.cursor = "pointer";
+                        btn.style.opacity = "1";
+                    }
                 });
+
                 if (isLeader) {
                     document.getElementById("joker-options-lead").style.display = "block";
                     document.getElementById("joker-options-follow").style.display = "none";
@@ -966,10 +1035,35 @@
         function resizeGame() {
             var gameScreen = document.getElementById("game-screen");
             var scaler = document.getElementById("game-scaler");
+            var chatBox = document.getElementById("chat-wrapper");
+
             if (gameScreen.style.display === "none") return;
-            var baseWidth = 1200; var baseHeight = 800;
-            var scale = Math.min(window.innerWidth / baseWidth, window.innerHeight / baseHeight);
-            scaler.style.transform = `scale(${scale * 0.95})`; 
+            var baseWidth = 1200; 
+            var baseHeight = 800;
+            var scaleX = window.innerWidth / baseWidth;
+            var scaleY = window.innerHeight / baseHeight;
+
+            // ---> NEW: Check if this is an actual mobile touchscreen device! <---
+            var isTouchDevice = (('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
+
+            // iPhone keyboard fix (only triggers on actual phones now)
+            if (isTouchDevice && window.innerWidth <= 800 && window.innerHeight < 450) {
+                scaleY = scaleX; 
+            }
+            
+            var scale = Math.min(scaleX, scaleY);
+            scaler.style.transform = `scale(${scale * 0.95})`;
+
+            if (chatBox) {
+                if (!isTouchDevice) {
+                    // On computer screens, ALWAYS scale the chat perfectly with the table!
+                    chatBox.style.transform = `scale(${scale})`;
+                    chatBox.style.transformOrigin = "bottom left";
+                } else {
+                    // On mobile phones, remove the scale so your floating CSS modal works perfectly
+                    chatBox.style.transform = "none";
+                }
+            }
         }
 
         // ==========================================
