@@ -7,13 +7,38 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 </head>
 <body>
+    <div id="custom-alert" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); z-index: 20000; justify-content: center; align-items: center;">
+        <div style="background: #222; border: 2px solid gold; border-radius: 10px; padding: 30px; width: 320px; text-align: center; color: white; box-shadow: 0px 10px 30px rgba(0,0,0,0.9);">
+            <h2 style="color: gold; margin-top: 0;">Welcome!</h2>
+            <p id="custom-alert-text" style="margin-bottom: 25px; font-size: 16px;"></p>
+            <button onclick="closeCustomAlert()" style="background: gold; color: black; padding: 10px 30px; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">OK</button>
+        </div>
+    </div>
 
-    <div id="login-screen">
-        <h1 style="font-size: 60px; color: gold; text-shadow: 2px 2px black;">JOKER ONLINE</h1>
-        <div style="background: rgba(0,0,0,0.7); padding: 40px; border-radius: 10px;">
-            <input type="text" id="username" placeholder="Enter Nickname" style="padding: 10px; font-size: 16px;">
-            <br><br>
-            <button onclick="joinGame()" style="padding: 10px 20px; font-size: 18px; cursor: pointer; background: gold; border:none; border-radius:5px;">JOIN TABLE</button>
+    <div id="login-screen" style="width: 100vw; height: 100vh; background: #2e8b57; position: absolute; top:0; left:0; z-index: 10000; overflow: hidden; display: flex; flex-direction: column; align-items: center;">
+        <h1 style="font-size: 60px; color: gold; text-shadow: 2px 2px black; margin-top: 8vh; margin-bottom: 20px;">JOKER ONLINE</h1>
+        
+        <div style="background: rgba(0,0,0,0.85); padding: 30px; border-radius: 15px; border: 2px solid gold; width: 350px; text-align: center; color: white; box-shadow: 0px 10px 30px rgba(0,0,0,0.8);">
+            
+            <div style="display: flex; margin-bottom: 20px; border-bottom: 1px solid #555;">
+                <div id="tab-login" onclick="switchAuthTab('login')" style="flex: 1; padding: 10px; cursor: pointer; font-weight: bold; color: gold; border-bottom: 3px solid gold; transition: 0.3s;">LOGIN</div>
+                <div id="tab-signup" onclick="switchAuthTab('signup')" style="flex: 1; padding: 10px; cursor: pointer; font-weight: bold; color: #aaa; border-bottom: 3px solid transparent; transition: 0.3s;">SIGN UP</div>
+            </div>
+
+            <div id="form-login">
+                <input type="text" id="login-username" placeholder="Username" style="width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #555; background: #222; color: white; box-sizing: border-box; font-size: 16px;">
+                <input type="password" id="login-password" placeholder="Password" style="width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #555; background: #222; color: white; box-sizing: border-box; font-size: 16px;">
+                <button onclick="submitLogin()" style="width: 100%; padding: 12px; background: gold; color: black; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; transition: 0.2s;">LOG IN</button>
+            </div>
+
+            <div id="form-signup" style="display: none;">
+                <input type="text" id="signup-username" placeholder="Username" style="width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #555; background: #222; color: white; box-sizing: border-box; font-size: 16px;">
+                <input type="email" id="signup-email" placeholder="Email Address" style="width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #555; background: #222; color: white; box-sizing: border-box; font-size: 16px;">
+                <input type="password" id="signup-password" placeholder="Password" style="width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #555; background: #222; color: white; box-sizing: border-box; font-size: 16px;">
+                <div style="text-align: left; color: #aaa; font-size: 14px; margin-bottom: 5px;">Birth Date:</div>
+                <input type="date" id="signup-birthdate" style="width: 100%; padding: 12px; margin-bottom: 20px; border-radius: 5px; border: 1px solid #555; background: #222; color: white; box-sizing: border-box; font-size: 16px;">
+                <button onclick="submitSignup()" style="width: 100%; padding: 12px; background: #4CAF50; color: white; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; transition: 0.2s;">CREATE ACCOUNT</button>
+            </div>
         </div>
     </div>
 
@@ -165,6 +190,10 @@
         var isDealing = false;
         var currentDealId = 0;
 
+        function closeCustomAlert() {
+            document.getElementById('custom-alert').style.display = 'none';
+        }
+
         function dealCardsLiveAction(hand) {
             currentDealId++; 
             let myDealId = currentDealId;
@@ -303,29 +332,106 @@
             btn.style.background = "gold"; btn.style.color = "black"; btn.style.cursor = "pointer";
         });
 
-        function joinGame() {
-            // 1. Trim away accidental spaces at the end of the name
-            var name = document.getElementById("username").value.trim(); 
-            
-            if(name) {
-                // 2. Freeze the button to physically prevent double-clicking!
-                var btn = document.querySelector("#login-screen button");
-                btn.disabled = true;
-                btn.innerText = "Joining...";
+        // ==========================================
+        // --- AUTHENTICATION LOGIC ---
+        // ==========================================
+        function switchAuthTab(tab) {
+            var tabLogin = document.getElementById('tab-login');
+            var tabSignup = document.getElementById('tab-signup');
+            var formLogin = document.getElementById('form-login');
+            var formSignup = document.getElementById('form-signup');
 
-                sessionStorage.setItem("joker_username", name);
-
-                socket.emit('join_game', {username: name});
-                document.getElementById("login-screen").style.display = "none";
-                var gameScreen = document.getElementById("game-screen");
-                gameScreen.style.display = "flex"; 
-                document.getElementById("logs").style.display = "block"; 
-                setTimeout(resizeGame, 50);
-                if (window.innerWidth <= 800) {
-                    document.getElementById("chat-wrapper").style.display = "none";
-                }
+            if (tab === 'login') {
+                tabLogin.style.color = 'gold'; tabLogin.style.borderBottomColor = 'gold';
+                tabSignup.style.color = '#aaa'; tabSignup.style.borderBottomColor = 'transparent';
+                formLogin.style.display = 'block'; formSignup.style.display = 'none';
+            } else {
+                tabSignup.style.color = 'gold'; tabSignup.style.borderBottomColor = 'gold';
+                tabLogin.style.color = '#aaa'; tabLogin.style.borderBottomColor = 'transparent';
+                formSignup.style.display = 'block'; formLogin.style.display = 'none';
             }
         }
+
+        function submitLogin() {
+            var user = document.getElementById('login-username').value.trim();
+            var pass = document.getElementById('login-password').value;
+            if (user && pass) {
+                document.querySelector("#form-login button").innerText = "Logging in...";
+                socket.emit('login_user', {username: user, password: pass});
+            } else {
+                alert("Please enter both username and password.");
+            }
+        }
+
+        function submitSignup() {
+            var user = document.getElementById('signup-username').value.trim();
+            var email = document.getElementById('signup-email').value.trim();
+            var pass = document.getElementById('signup-password').value;
+            var bdate = document.getElementById('signup-birthdate').value;
+
+            if (user && email && pass && bdate) {
+                document.querySelector("#form-signup button").innerText = "Creating...";
+                socket.emit('register_user', {
+                    username: user, email: email, password: pass, birth_date: bdate
+                });
+            } else {
+                alert("Please fill out all fields.");
+            }
+        }
+
+        socket.on('auth_success', function(data) {
+            // 1. Show the custom pop-up instead of the browser alert
+            document.getElementById('custom-alert-text').innerText = data.msg;
+            document.getElementById('custom-alert').style.display = 'flex';
+            
+            // 2. Switch the background tab to Login
+            switchAuthTab('login');
+            
+            // 3. Reset the button text
+            document.querySelector("#form-signup button").innerText = "CREATE ACCOUNT";
+            
+            // 4. Wipe the signup fields clean (and DO NOT copy them to login)
+            document.getElementById('signup-username').value = "";
+            document.getElementById('signup-email').value = "";
+            document.getElementById('signup-password').value = "";
+            document.getElementById('signup-birthdate').value = "";
+        });
+
+        socket.on('login_success', function(data) {
+            sessionStorage.setItem("joker_username", data.username);
+            
+            // Logged in! Hide auth screen and show table
+            document.getElementById("login-screen").style.display = "none";
+            var gameScreen = document.getElementById("game-screen");
+            gameScreen.style.display = "flex"; 
+            document.getElementById("logs").style.display = "block"; 
+            setTimeout(resizeGame, 50);
+            
+            var isTouchDevice = (('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
+            if (isTouchDevice && window.innerWidth <= 800) {
+                document.getElementById("chat-wrapper").style.display = "none";
+            }
+
+            console.log("Lifetime Points: " + data.stats.points);
+        });
+
+        // Tweak your existing error_message to reset the buttons if auth fails!
+        socket.on('error_message', function(data) { 
+            alert(data.msg); 
+            
+            // Reset buttons if they were trying to log in
+            var loginBtn = document.querySelector("#form-login button");
+            var signupBtn = document.querySelector("#form-signup button");
+            if(loginBtn) loginBtn.innerText = "LOG IN";
+            if(signupBtn) signupBtn.innerText = "CREATE ACCOUNT";
+
+            if (data.msg === "Not your turn!") {
+                myTurn = false;
+            } else {
+                myTurn = true; 
+            }
+            updateHandVisuals();
+        });
         
         function sendReady() {
             socket.emit('player_ready');

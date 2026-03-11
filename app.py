@@ -2,6 +2,10 @@ import os
 from flask import Flask, render_template, request, session
 from flask_socketio import SocketIO, emit
 from game_engine import JokerGame
+from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 # Setup Paths
 base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -14,6 +18,11 @@ socketio = SocketIO(app, async_mode='eventlet')
 # Initialize the Game Engine
 game = JokerGame()
 play_again_votes = set()
+
+# --- FIREBASE SETUP ---
+cred = credentials.Certificate("firebase_key.json")
+firebase_admin.initialize_app(cred)
+db = firestore.client()
 
 @app.route('/')
 def index():
@@ -44,7 +53,88 @@ def broadcast_scores():
         'history': game.score_history, # Send the scoreboard data
         'turn_order': game.turn_order  # Keep columns in correct order
     }, broadcast=True)
+    
+# --- AUTHENTICATION: SIGN UP ---
+@socketio.on('register_user')
+def handle_register(data):
+    username = data.get('username').strip()
+    email = data.get('email').strip().lower()
+    password = data.get('password')
+    birth_date = data.get('birth_date')
+    sid = request.sid
+    
+    users_ref = db.collection('users')
+    
+    # 1. Check if username is already taken (Super fast because it's the Document ID!)
+    if users_ref.document(username).get().exists:
+        emit('error_message', {'msg': 'Username is already taken!'}, room=sid)
+        return
         
+    # 2. Check if email is already taken
+    email_check = users_ref.where('email', '==', email).limit(1).get()
+    if len(email_check) > 0:
+        emit('error_message', {'msg': 'Email is already in use!'}, room=sid)
+        return
+
+    # 3. GET THE NEW UNIQUE ID (The Auto-Increment Counter)
+    counter_ref = db.collection('system').document('counters')
+    counter_doc = counter_ref.get()
+    
+    if counter_doc.exists:
+        new_id = counter_doc.to_dict().get('last_user_id', 0) + 1
+    else:
+        new_id = 1
+        
+    counter_ref.set({'last_user_id': new_id})
+
+    # 4. Hash the password and save to the Cloud!
+    hashed_pw = generate_password_hash(password)
+    signup_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # ---> THE FIX: Document ID is username, Numeric ID is saved inside! <---
+    users_ref.document(username).set({
+        'id': new_id,
+        'username': username,
+        'email': email,
+        'password_hash': hashed_pw,
+        'birth_date': birth_date,
+        'signup_date': signup_date,
+        'game_points': 1000,
+        'games_played': 0
+    })
+    
+    emit('auth_success', {'msg': f'Account created!. You can now log in.'}, room=sid)
+
+
+# --- AUTHENTICATION: LOGIN ---
+@socketio.on('login_user')
+def handle_login(data):
+    username = data.get('username').strip()
+    password = data.get('password')
+    sid = request.sid
+    
+    # Fetch the user directly using the fast Document ID method
+    doc = db.collection('users').document(username).get()
+
+    if doc.exists:
+        user_data = doc.to_dict()
+        # Verify the encrypted password
+        if check_password_hash(user_data['password_hash'], password):
+            
+            # Send their lifetime stats to the browser
+            stats = {
+                'points': user_data.get('game_points', 1000), 
+                'games_played': user_data.get('games_played', 0)
+            }
+            emit('login_success', {'username': username, 'stats': stats}, room=sid)
+            
+            # Manually route them into the lobby using your existing logic
+            handle_join({'username': username})
+            return
+
+    # If document doesn't exist or password fails:
+    emit('error_message', {'msg': 'Invalid Username or Password!'}, room=sid)
+
 @socketio.on('join_game')
 def handle_join(data):
     username = data['username']
@@ -319,8 +409,6 @@ def handle_play_card(data):
             'valid_indices': game.get_valid_moves(next_sid)
         }, room=next_sid)
 
-
-# --- WAITING FOR PLAYERS TO CLOSE SCOREBOARD ---
 # --- WAITING FOR PLAYERS TO CLOSE SCOREBOARD ---
 @socketio.on('ready_next_round')
 def handle_ready_next_round():
