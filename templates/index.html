@@ -42,6 +42,52 @@
         </div>
     </div>
 
+    <div id="lobby-screen" style="display: none; width: 100vw; height: 100vh; background: #2e8b57; position: absolute; top:0; left:0; z-index: 9000; flex-direction: column; align-items: center; justify-content: center;">
+        <h1 style="font-size: 60px; color: gold; text-shadow: 2px 2px black; margin-bottom: 30px;">GAME LOBBY</h1>
+        
+        <div style="background: rgba(0,0,0,0.85); padding: 40px; border-radius: 15px; border: 2px solid gold; width: 350px; text-align: center; color: white; box-shadow: 0px 10px 30px rgba(0,0,0,0.8);">
+            
+            <button onclick="createTable()" style="width: 100%; padding: 15px; background: gold; color: black; font-weight: bold; font-size: 18px; border: none; border-radius: 5px; cursor: pointer; transition: 0.2s; box-shadow: 0px 4px 10px rgba(0,0,0,0.5);">➕ CREATE NEW TABLE</button>
+            
+            <div style="margin: 30px 0; color: #888; font-weight: bold; display: flex; align-items: center;">
+                <div style="flex: 1; height: 1px; background: #555;"></div>
+                <div style="padding: 0 10px;">OR</div>
+                <div style="flex: 1; height: 1px; background: #555;"></div>
+            </div>
+            
+            <input type="text" id="join-code" placeholder="ENTER 4-DIGIT CODE" maxlength="4" style="width: 100%; padding: 15px; margin-bottom: 15px; border-radius: 5px; border: 2px solid #555; background: #222; color: gold; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; text-transform: uppercase; box-sizing: border-box;">
+            <button onclick="joinTable()" style="width: 100%; padding: 15px; background: #4CAF50; color: white; font-weight: bold; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; transition: 0.2s; box-shadow: 0px 4px 10px rgba(0,0,0,0.5);">JOIN TABLE</button>
+            
+        </div>
+    </div>
+
+    <div id="seat-selection-screen" style="display: none; width: 100vw; height: 100vh; background: #1a4d2e; position: absolute; top:0; left:0; z-index: 8000; flex-direction: column; align-items: center; justify-content: center;">
+        
+        <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="color: white; margin: 0; font-size: 24px;">TABLE CODE:</h2>
+            <h1 id="display-room-code" style="color: gold; margin: 5px 0; font-size: 60px; letter-spacing: 5px; text-shadow: 2px 2px black;">XXXX</h1>
+            <p style="color: #aaa; margin: 0;">Waiting for players to sit...</p>
+        </div>
+
+        <div style="position: relative; width: 500px; height: 500px;">
+            
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; height: 200px; background: #2e8b57; border: 8px solid #111; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: inset 0px 0px 20px rgba(0,0,0,0.8), 0px 10px 20px rgba(0,0,0,0.5);">
+                <span style="color: rgba(255,255,255,0.2); font-size: 40px;">🃏</span>
+            </div>
+
+            <button id="seat-btn-0" onclick="takeSeat(0)" style="position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 150px; padding: 15px; background: #333; color: white; border: 2px solid gold; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.2s;">SIT HERE</button>
+            
+            <button id="seat-btn-1" onclick="takeSeat(1)" style="position: absolute; top: 50%; right: 0; transform: translateY(-50%); width: 150px; padding: 15px; background: #333; color: white; border: 2px solid gold; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.2s;">SIT HERE</button>
+            
+            <button id="seat-btn-2" onclick="takeSeat(2)" style="position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 150px; padding: 15px; background: #333; color: white; border: 2px solid gold; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.2s;">SIT HERE</button>
+            
+            <button id="seat-btn-3" onclick="takeSeat(3)" style="position: absolute; top: 50%; left: 0; transform: translateY(-50%); width: 150px; padding: 15px; background: #333; color: white; border: 2px solid gold; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.2s;">SIT HERE</button>
+
+        </div>
+        
+        <button onclick="leaveTable()" style="margin-top: 40px; padding: 10px 30px; background: #F44336; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Leave Table</button>
+    </div>
+
     <div id="game-screen" style="display:none; width: 100vw; height: 100vh; background: #2e8b57; overflow: hidden;">
         <div id="chat-wrapper">
             <div id="logs"></div>
@@ -400,8 +446,83 @@
         socket.on('login_success', function(data) {
             sessionStorage.setItem("joker_username", data.username);
             
-            // Logged in! Hide auth screen and show table
+            // Logged in! Hide auth screen and SHOW THE LOBBY
             document.getElementById("login-screen").style.display = "none";
+            document.getElementById("lobby-screen").style.display = "flex"; 
+            
+            console.log("Lifetime Points: " + data.stats.points);
+        });
+
+       // ==========================================
+        // --- NEW LOBBY & SEAT SELECTION LOGIC ---
+        // ==========================================
+        function createTable() {
+            var username = sessionStorage.getItem("joker_username");
+            socket.emit('create_table', {username: username});
+        }
+
+        function joinTable() {
+            var code = document.getElementById("join-code").value.trim().toUpperCase();
+            var username = sessionStorage.getItem("joker_username");
+            if(code.length > 0) {
+                socket.emit('join_table', {username: username, room: code});
+            } else {
+                alert("Please enter a table code!");
+            }
+        }
+
+        // 1. When you join, show the chairs instead of the table!
+        socket.on('table_joined', function(data) {
+            document.getElementById("lobby-screen").style.display = "none";
+            document.getElementById("seat-selection-screen").style.display = "flex";
+            
+            // Show the 4-digit code on the wall
+            document.getElementById("display-room-code").innerText = data.room;
+            
+            // Draw the initial chairs
+            updateSeatVisuals(data.seats);
+        });
+
+        // 2. Click a chair to claim it
+        function takeSeat(index) {
+            var username = sessionStorage.getItem("joker_username");
+            socket.emit('take_seat', {username: username, seat: index});
+        }
+
+        // 3. Leave the table (Quickly reloads the browser to reset)
+        function leaveTable() {
+            window.location.reload(); 
+        }
+
+        // 4. Update chairs in real-time when friends sit down
+        socket.on('update_seats', function(data) {
+            updateSeatVisuals(data.seats);
+        });
+
+        function updateSeatVisuals(seats) {
+            for (let i = 0; i < 4; i++) {
+                var btn = document.getElementById("seat-btn-" + i);
+                if (seats[i] !== null) {
+                    // Seat is taken! Gray it out and add the player's name
+                    btn.innerText = "👑 " + seats[i].name;
+                    btn.style.background = "#555";
+                    btn.style.color = "gold";
+                    btn.disabled = true;
+                    btn.style.cursor = "not-allowed";
+                } else {
+                    // Seat is empty!
+                    btn.innerText = "SIT HERE";
+                    btn.style.background = "#333";
+                    btn.style.color = "white";
+                    btn.disabled = false;
+                    btn.style.cursor = "pointer";
+                }
+            }
+        }
+
+        // 5. When the 4th person sits, teleport everyone to the game board!
+        socket.on('start_game_board', function() {
+            document.getElementById("seat-selection-screen").style.display = "none";
             var gameScreen = document.getElementById("game-screen");
             gameScreen.style.display = "flex"; 
             document.getElementById("logs").style.display = "block"; 
@@ -411,8 +532,10 @@
             if (isTouchDevice && window.innerWidth <= 800) {
                 document.getElementById("chat-wrapper").style.display = "none";
             }
-
-            console.log("Lifetime Points: " + data.stats.points);
+            
+            // Print the room code in the chat history
+            var roomCode = document.getElementById("display-room-code").innerText;
+            document.getElementById("logs").innerHTML += `<div style='color: gold; text-align: center; font-size: 16px; padding: 10px; border: 1px dashed gold; margin-bottom: 10px; background: rgba(0,0,0,0.5);'>TABLE CODE: <b style="font-size: 24px;">${roomCode}</b></div>`;
         });
 
         // Tweak your existing error_message to reset the buttons if auth fails!
@@ -673,8 +796,11 @@
 
         // --- SMART RECONNECT LOGIC ---
         socket.on('sync_game_state', function(data) {
-            // 1. Hide the login screen, open the game board
+            // 1. Hide all menus, open the game board
             document.getElementById("login-screen").style.display = "none";
+            document.getElementById("lobby-screen").style.display = "none";           // <-- NEW: Hide lobby
+            document.getElementById("seat-selection-screen").style.display = "none";  // <-- NEW: Hide chairs
+            
             document.getElementById("game-screen").style.display = "flex";
             document.getElementById("logs").style.display = "block"; 
             setTimeout(resizeGame, 50);
@@ -946,7 +1072,7 @@
         }
 
         function handleCardClick(card, index) {
-            if (!myTurn) { alert("Wait for your turn!"); return; }
+            if (!myTurn) { return; }
             
             // STOP THE CLICK if it's your turn but you clicked an illegal card
             if (myValidIndices.length > 0 && !myValidIndices.includes(index)) {
