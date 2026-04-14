@@ -131,6 +131,72 @@ def handle_login(data):
 
     emit('error_message', {'msg': 'Invalid Username or Password!'}, room=sid)
 
+# --- AUTO-RECONNECT ON PAGE REFRESH ---
+@socketio.on('auto_reconnect')
+def handle_auto_reconnect(data):
+    username = data.get('username')
+    if not username: return
+    sid = request.sid
+
+    # 1. Search all active tables to see if this user was already playing
+    for code, table in active_tables.items():
+        seats = table['seats']
+        game = table['game']
+
+        old_sid = None
+        for s_id, s_data in seats.items():
+            if s_data and s_data['name'] == username:
+                old_sid = s_data['sid']
+                s_data['sid'] = sid # Update the seat map with the new connection ID!
+                break
+
+        if old_sid:
+            join_room(code)
+            player_table_map[sid] = code
+
+            # CASE A: The game had already started. Warp them to the green felt!
+            if old_sid in game.players:
+                game.update_player_sid(old_sid, sid)
+                emit('your_id', {'sid': sid}, room=sid)
+
+                players_list = [{'sid': seats[i]['sid'], 'name': seats[i]['name']} for i in range(4) if seats[i] is not None]
+                emit('update_player_list', {'players': players_list}, room=code)
+
+                # Send the "care package" to redraw their screen instantly
+                state_data = game.get_reconnect_state(sid)
+                emit('sync_game_state', state_data, room=sid)
+                broadcast_scores(code)
+
+                # Check if it was their turn when they refreshed
+                if game.game_phase == "DECLARING" and game.get_current_bidder_id() == sid:
+                    emit('your_turn_to_declare', {}, room=sid)
+                elif game.game_phase == "BIDDING" and game.get_current_bidder_id() == sid:
+                    emit('your_turn_to_bid', {'forbidden': game.get_forbidden_bid(sid)}, room=sid)
+                elif game.game_phase == "PLAYING" and game.get_current_bidder_id() == sid:
+                    emit('your_turn_to_play', {
+                        'is_leader': len(game.current_trick_cards) == 0,
+                        'valid_indices': game.get_valid_moves(sid)
+                    }, room=sid)
+
+                emit('log_message', {'msg': f"🔄 {username} refreshed and reconnected!"}, room=code)
+                return
+                
+            # CASE B: They were just sitting in the chairs waiting for others.
+            else:
+                emit('table_joined', {'room': code, 'seats': seats}, room=sid)
+                return
+
+    # 2. If they weren't at a table at all, just silently log them into the Main Lobby
+    doc = db.collection('users').document(username).get()
+    if doc.exists:
+        user_data = doc.to_dict()
+        stats = {
+            'points': user_data.get('game_points', 1000),
+            'games_played': user_data.get('games_played', 0)
+        }
+        # This will trigger the normal login UI skip!
+        emit('login_success', {'username': username, 'stats': stats}, room=sid)
+
 # ==========================================
 # --- NEW LOBBY SYSTEM ---
 # ==========================================
@@ -211,6 +277,36 @@ def handle_join_table(data):
         emit('table_joined', {'room': code, 'seats': seats}, room=sid)
     else:
         emit('error_message', {'msg': "Table not found!"}, room=sid)
+
+@socketio.on('request_table_list')
+def handle_request_table_list():
+    sid = request.sid
+    available_tables = []
+    
+    # Scan all current rooms
+    for code, table in active_tables.items():
+        seats = table['seats']
+        game = table['game']
+        
+        # Count how many chairs are taken
+        players_seated = sum(1 for s in seats.values() if s is not None)
+        
+        # Only show tables that aren't full AND haven't started the game yet
+        if players_seated < 4 and game.game_phase == "WAITING":
+            # Figure out who the "Host" is to display their name
+            host_name = "Open Table"
+            for s in seats.values():
+                if s is not None:
+                    host_name = f"{s['name']}'s Table"
+                    break
+                    
+            available_tables.append({
+                'code': code,
+                'players': players_seated,
+                'host': host_name
+            })
+            
+    emit('receive_table_list', {'tables': available_tables}, room=sid)
 
 @socketio.on('take_seat')
 def handle_take_seat(data):

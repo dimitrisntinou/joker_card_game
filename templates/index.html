@@ -44,20 +44,24 @@
 
     <div id="lobby-screen" style="display: none; width: 100vw; height: 100vh; background: #2e8b57; position: absolute; top:0; left:0; z-index: 9000; flex-direction: column; align-items: center; justify-content: center;">
         <h1 style="font-size: 60px; color: gold; text-shadow: 2px 2px black; margin-bottom: 30px;">GAME LOBBY</h1>
-        
         <div style="background: rgba(0,0,0,0.85); padding: 40px; border-radius: 15px; border: 2px solid gold; width: 350px; text-align: center; color: white; box-shadow: 0px 10px 30px rgba(0,0,0,0.8);">
-            
             <button onclick="createTable()" style="width: 100%; padding: 15px; background: gold; color: black; font-weight: bold; font-size: 18px; border: none; border-radius: 5px; cursor: pointer; transition: 0.2s; box-shadow: 0px 4px 10px rgba(0,0,0,0.5);">➕ CREATE NEW TABLE</button>
-            
             <div style="margin: 30px 0; color: #888; font-weight: bold; display: flex; align-items: center;">
                 <div style="flex: 1; height: 1px; background: #555;"></div>
                 <div style="padding: 0 10px;">OR</div>
                 <div style="flex: 1; height: 1px; background: #555;"></div>
             </div>
-            
             <input type="text" id="join-code" placeholder="ENTER 4-DIGIT CODE" maxlength="4" style="width: 100%; padding: 15px; margin-bottom: 15px; border-radius: 5px; border: 2px solid #555; background: #222; color: gold; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; text-transform: uppercase; box-sizing: border-box;">
             <button onclick="joinTable()" style="width: 100%; padding: 15px; background: #4CAF50; color: white; font-weight: bold; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; transition: 0.2s; box-shadow: 0px 4px 10px rgba(0,0,0,0.5);">JOIN TABLE</button>
-            
+        </div>
+        <div style="margin-top: 30px; width: 450px; max-width: 90vw; background: rgba(0,0,0,0.85); padding: 20px; border-radius: 15px; border: 2px solid #555; color: white; box-shadow: 0px 10px 30px rgba(0,0,0,0.8);">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #555; padding-bottom: 10px; margin-bottom: 15px;">
+                <h2 style="margin: 0; color: gold; font-size: 20px;">🌐 Public Tables</h2>
+                <button onclick="refreshTableList()" style="background: #333; color: white; border: 1px solid #777; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s;">🔄 Refresh</button>
+            </div>
+            <div id="public-tables-list" style="max-height: 200px; overflow-y: auto; padding-right: 5px;">
+                <div style="text-align: center; color: #888; padding: 20px;">Click refresh to find tables...</div>
+            </div>
         </div>
     </div>
 
@@ -254,16 +258,14 @@
 
             for (let i = 0; i < hand.length; i++) {
                 positions.forEach((pos) => {
-                    // 1. Shoot the dummy card across the table
                     setTimeout(() => {
-                        if (myDealId !== currentDealId) return; // KILL GHOST
+                        if (myDealId !== currentDealId) return; 
                         dealSingleCard(pos);
                     }, delay);
 
-                    // 2. If the card was dealt to YOU, reveal the real card right as the dummy lands!
                     if (pos === "bottom") {
                         setTimeout(() => {
-                            if (myDealId !== currentDealId) return; // KILL GHOST
+                            if (myDealId !== currentDealId) return; 
                             revealRealCard(hand[i], i);
                         }, delay + flightTime);
                     }
@@ -275,7 +277,7 @@
             currentDealDelay = delay + flightTime + 200; 
 
             setTimeout(() => {
-                if (myDealId !== currentDealId) return; // KILL GHOST
+                if (myDealId !== currentDealId) return; 
                 isDealing = false;
                 updateHandVisuals();
                 currentDealDelay = 0;
@@ -284,11 +286,9 @@
 
         function revealRealCard(cardData, index) {
             var handDiv = document.getElementById("my-hand");
-            
-            // --- Failsafe to block duplicates! ---
             var cardId = "live-card-" + index;
             if (document.getElementById(cardId)) {
-                return; // If it's already there, do nothing!
+                return; 
             }
             
             var el = document.createElement("div");
@@ -307,13 +307,17 @@
         window.onload = function() {
             var savedName = sessionStorage.getItem("joker_username");
             if (savedName) {
-                document.getElementById("username").value = savedName;
+                var loginInput = document.getElementById("login-username");
+                if (loginInput) loginInput.value = savedName; 
             }
         };
 
         socket.on('connect', function() {
             console.log("Connected to server!");
-            // The auto-join trap has been permanently destroyed!
+            var savedName = sessionStorage.getItem("joker_username");
+            if (savedName) {
+                socket.emit('auto_reconnect', {username: savedName});
+            }
         });
 
         socket.on('your_id', function(data) { 
@@ -321,27 +325,22 @@
             updateTablePositions(); 
         });
 
-        // 3. The bulletproof table drawing logic
         function updateTablePositions() {
-            // Stop immediately if we are missing our ID or the player list!
             if (!mySid || allPlayers.length === 0) {
                 return; 
             }
 
             myIndex = allPlayers.findIndex(p => p.sid === mySid);
             
-            // If we aren't in the list yet (index -1), stop and wait!
             if (myIndex === -1) {
                 return; 
             }
 
-            // --- DRAW OURSELVES FIRST ---
             let bottomName = document.getElementById("name-bottom");
             if (bottomName) {
                 bottomName.innerText = allPlayers[myIndex].name;
             }
 
-            // --- RESET ALL GUEST SEATS ---
             let leftName = document.getElementById("name-left");
             let topName = document.getElementById("name-top");
             let rightName = document.getElementById("name-right");
@@ -350,12 +349,10 @@
             if (topName) topName.innerText = "Waiting...";
             if (rightName) rightName.innerText = "Waiting...";
 
-            // --- CALCULATE GUEST SEATS ---
             let leftIdx = (myIndex + 1) % 4; 
             let topIdx = (myIndex + 2) % 4; 
             let rightIdx = (myIndex + 3) % 4;
             
-            // --- THE FIX: DRAW GUESTS IMMEDIATELY IF THEY EXIST! ---
             if (allPlayers[leftIdx]) {
                 leftName.innerText = allPlayers[leftIdx].name;
             }
@@ -372,6 +369,7 @@
             myIndex = allPlayers.findIndex(p => p.sid === mySid);
             updateTablePositions();
         });
+        
         socket.on('enable_ready_btn', function() {
             var btn = document.getElementById("ready-btn");
             btn.disabled = false; btn.innerText = "I AM READY"; 
@@ -426,17 +424,11 @@
         }
 
         socket.on('auth_success', function(data) {
-            // 1. Show the custom pop-up instead of the browser alert
             document.getElementById('custom-alert-text').innerText = data.msg;
             document.getElementById('custom-alert').style.display = 'flex';
-            
-            // 2. Switch the background tab to Login
             switchAuthTab('login');
-            
-            // 3. Reset the button text
             document.querySelector("#form-signup button").innerText = "CREATE ACCOUNT";
             
-            // 4. Wipe the signup fields clean (and DO NOT copy them to login)
             document.getElementById('signup-username').value = "";
             document.getElementById('signup-email').value = "";
             document.getElementById('signup-password').value = "";
@@ -445,15 +437,14 @@
 
         socket.on('login_success', function(data) {
             sessionStorage.setItem("joker_username", data.username);
-            
-            // Logged in! Hide auth screen and SHOW THE LOBBY
             document.getElementById("login-screen").style.display = "none";
-            document.getElementById("lobby-screen").style.display = "flex"; 
-            
+            document.getElementById("lobby-screen").style.display = "flex";
+
+            refreshTableList();
             console.log("Lifetime Points: " + data.stats.points);
         });
 
-       // ==========================================
+        // ==========================================
         // --- NEW LOBBY & SEAT SELECTION LOGIC ---
         // ==========================================
         function createTable() {
@@ -471,30 +462,64 @@
             }
         }
 
-        // 1. When you join, show the chairs instead of the table!
+        function refreshTableList() {
+            socket.emit('request_table_list');
+        }
+
+        socket.on('receive_table_list', function(data) {
+            var listContainer = document.getElementById("public-tables-list");
+            listContainer.innerHTML = ""; 
+            
+            if (data.tables.length === 0) {
+                listContainer.innerHTML = "<div style='text-align: center; color: #888; padding: 20px; font-style: italic;'>No open tables right now. Create one!</div>";
+                return;
+            }
+            
+            data.tables.forEach(table => {
+                var tableEl = document.createElement("div");
+                tableEl.style.display = "flex";
+                tableEl.style.justifyContent = "space-between";
+                tableEl.style.alignItems = "center";
+                tableEl.style.background = "#222";
+                tableEl.style.padding = "10px 15px";
+                tableEl.style.marginBottom = "10px";
+                tableEl.style.borderRadius = "8px";
+                tableEl.style.border = "1px solid #444";
+                
+                tableEl.innerHTML = `
+                    <div style="text-align: left;">
+                        <div style="font-weight: bold; color: white; font-size: 16px;">${table.host}</div>
+                        <div style="color: #aaa; font-size: 13px; margin-top: 3px;">Players: <span style="color: gold; font-weight: bold;">${table.players}/4</span></div>
+                    </div>
+                    <div>
+                        <button onclick="joinSpecificTable('${table.code}')" style="background: #4CAF50; color: white; font-weight: bold; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0px 2px 5px rgba(0,0,0,0.5);">JOIN</button>
+                    </div>
+                `;
+                listContainer.appendChild(tableEl);
+            });
+        });
+
+        function joinSpecificTable(code) {
+            document.getElementById("join-code").value = code; 
+            joinTable(); 
+        }
+
         socket.on('table_joined', function(data) {
             document.getElementById("lobby-screen").style.display = "none";
             document.getElementById("seat-selection-screen").style.display = "flex";
-            
-            // Show the 4-digit code on the wall
             document.getElementById("display-room-code").innerText = data.room;
-            
-            // Draw the initial chairs
             updateSeatVisuals(data.seats);
         });
 
-        // 2. Click a chair to claim it
         function takeSeat(index) {
             var username = sessionStorage.getItem("joker_username");
             socket.emit('take_seat', {username: username, seat: index});
         }
 
-        // 3. Leave the table (Quickly reloads the browser to reset)
         function leaveTable() {
             window.location.reload(); 
         }
 
-        // 4. Update chairs in real-time when friends sit down
         socket.on('update_seats', function(data) {
             updateSeatVisuals(data.seats);
         });
@@ -503,14 +528,12 @@
             for (let i = 0; i < 4; i++) {
                 var btn = document.getElementById("seat-btn-" + i);
                 if (seats[i] !== null) {
-                    // Seat is taken! Gray it out and add the player's name
                     btn.innerText = "👑 " + seats[i].name;
                     btn.style.background = "#555";
                     btn.style.color = "gold";
                     btn.disabled = true;
                     btn.style.cursor = "not-allowed";
                 } else {
-                    // Seat is empty!
                     btn.innerText = "SIT HERE";
                     btn.style.background = "#333";
                     btn.style.color = "white";
@@ -520,7 +543,6 @@
             }
         }
 
-        // 5. When the 4th person sits, teleport everyone to the game board!
         socket.on('start_game_board', function() {
             document.getElementById("seat-selection-screen").style.display = "none";
             var gameScreen = document.getElementById("game-screen");
@@ -533,16 +555,24 @@
                 document.getElementById("chat-wrapper").style.display = "none";
             }
             
-            // Print the room code in the chat history
             var roomCode = document.getElementById("display-room-code").innerText;
             document.getElementById("logs").innerHTML += `<div style='color: gold; text-align: center; font-size: 16px; padding: 10px; border: 1px dashed gold; margin-bottom: 10px; background: rgba(0,0,0,0.5);'>TABLE CODE: <b style="font-size: 24px;">${roomCode}</b></div>`;
         });
 
-        // Tweak your existing error_message to reset the buttons if auth fails!
+        function sendReady() {
+            socket.emit('player_ready');
+            var btn = document.getElementById("ready-btn");
+            btn.innerText = "WAITING..."; 
+            btn.disabled = true; 
+            btn.style.background = "#555"; 
+            btn.style.color = "white";
+            btn.style.border = "2px solid white";
+            btn.style.cursor = "not-allowed";
+        }
+
         socket.on('error_message', function(data) { 
             alert(data.msg); 
             
-            // Reset buttons if they were trying to log in
             var loginBtn = document.querySelector("#form-login button");
             var signupBtn = document.querySelector("#form-signup button");
             if(loginBtn) loginBtn.innerText = "LOG IN";
@@ -555,18 +585,11 @@
             }
             updateHandVisuals();
         });
-        
-        function sendReady() {
-            socket.emit('player_ready');
-            var btn = document.getElementById("ready-btn");
-            btn.innerText = "READY!"; btn.disabled = true; btn.style.background = "#4CAF50"; 
-        }
 
         // ==========================================
         // --- VISUAL TURN INDICATOR ---
         // ==========================================
         function highlightActivePlayer(activeSid) {
-            // 1. Remove the glow from everyone first
             ["bottom", "top", "left", "right"].forEach(pos => {
                 var slot = document.getElementById("player-" + pos);
                 if (slot) {
@@ -575,10 +598,8 @@
                 }
             });
 
-            // 2. If no one is active (like during animations), stop here
             if (!activeSid) return;
             
-            // 3. Find the active player and make them glow!
             var pIndex = allPlayers.findIndex(p => p.sid === activeSid);
             if (pIndex !== -1) {
                 var relIndex = (pIndex - myIndex + 4) % 4; 
@@ -597,46 +618,37 @@
         }
 
         function dealSingleCard(targetPosition) {
-            // 1. Create the dummy card element
             var card = document.createElement('div');
             card.className = 'flying-card';
             document.body.appendChild(card);
 
-            // 2. Find where it needs to go
             var targetEl = document.getElementById("points-" + targetPosition); 
             if (!targetEl) {
                 card.remove();
                 return;
             }
 
-            // 3. Get the exact coordinates of the target on the screen
             var rect = targetEl.getBoundingClientRect();
             var startX = window.innerWidth / 2;
             var startY = window.innerHeight / 2;
             
-            // Target the center of the player's area
             var endX = rect.left + (rect.width / 2);
             var endY = rect.top + (rect.height / 2);
 
-            // Calculate the distance to move
             var tx = endX - startX;
             var ty = endY - startY;
 
-            // 4. Force browser to register the initial center position before moving
             void card.offsetWidth;
 
-            // 5. Trigger the animation
             card.style.transform = `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(0.5)`;
-            card.style.opacity = "0"; // Fade out as it reaches the player
+            card.style.opacity = "0"; 
 
-            // 6. Delete the temporary card after the animation finishes
             setTimeout(() => {
                 card.remove();
             }, 400);
         }
 
         socket.on('your_turn_to_declare', function() {
-            // Wait for the dealer to finish giving you the 3 cards!
             setTimeout(() => {
                 highlightActivePlayer(mySid);
                 document.getElementById("declaring-modal").style.display = "flex";
@@ -735,14 +747,11 @@
                 label.style.color = "white";
             }
             
-            // --- NEW: Save the hand data immediately before the animation delays the rendering ---
             myHandData = data.hand; 
-
             dealCardsLiveAction(data.hand);
         });
 
         socket.on('your_turn_to_bid', function(data) {
-            // Wait for the dealer to finish dealing the cards!
             setTimeout(() => {
                 highlightActivePlayer(mySid);
                 var container = document.getElementById("bid-buttons-container");
@@ -771,7 +780,7 @@
                 }
                 document.getElementById("bidding-modal").style.display = "flex";
                 
-            }, currentDealDelay); // <-- Delays the popup exactly until the last card is flipped!
+            }, currentDealDelay); 
         });
 
         socket.on('your_turn_to_play', function(data) {
@@ -780,14 +789,14 @@
             myValidIndices = data.valid_indices ? data.valid_indices : [];
             document.getElementById("logs").innerHTML += "<div style='color:lime; font-weight:bold;'>YOUR TURN TO PLAY!</div>";
             document.getElementById("my-hand").style.borderTop = "4px solid lime";
-            updateHandVisuals(); // <-- Use the new function
+            updateHandVisuals(); 
         });
 
         socket.on('update_turn_indicator', function(data) {
             if(data.sid !== mySid) {
                 myTurn = false;
                 document.getElementById("my-hand").style.borderTop = "none";
-                updateHandVisuals(); // Remove highlights when not your turn
+                updateHandVisuals(); 
             }
             highlightActivePlayer(data.sid);
             document.getElementById("logs").innerHTML += `<div>${data.name}'s turn...</div>`;
@@ -796,25 +805,21 @@
 
         // --- SMART RECONNECT LOGIC ---
         socket.on('sync_game_state', function(data) {
-            // 1. Hide all menus, open the game board
             document.getElementById("login-screen").style.display = "none";
-            document.getElementById("lobby-screen").style.display = "none";           // <-- NEW: Hide lobby
-            document.getElementById("seat-selection-screen").style.display = "none";  // <-- NEW: Hide chairs
+            document.getElementById("lobby-screen").style.display = "none";           
+            document.getElementById("seat-selection-screen").style.display = "none";  
             
             document.getElementById("game-screen").style.display = "flex";
             document.getElementById("logs").style.display = "block"; 
             setTimeout(resizeGame, 50);
 
-            // 2. Hide the "Ready" button if the game is already in progress
             if (data.game_phase !== "WAITING") {
                 document.getElementById("ready-btn").style.display = "none";
                 document.getElementById("deck-pile").style.display = "block";
             }
 
-            // 3. Redraw your Hand
             renderHand(data.hand);
 
-            // 4. Redraw the Kozer (Trump) box
             if (data.trump_card) {
                 document.getElementById("trump-card-slot").style.display = "block";
                 var tSlot = document.getElementById("trump-card-slot");
@@ -842,7 +847,6 @@
                 }
             }
 
-            // 5. Redraw any cards currently sitting on the table
             ["bottom", "top", "left", "right"].forEach(pos => {
                 var slot = document.getElementById("played-" + pos);
                 if (slot) slot.innerHTML = "";
@@ -879,7 +883,6 @@
                 });
             }
 
-            // 6. Restore the turn indicator and locking mechanisms
             myTurn = (data.current_bidder_sid === mySid);
             if (myTurn) {
                 myValidIndices = data.my_valid_indices;
@@ -945,23 +948,18 @@
                 });
                 html += "</tr>";
 
-                // Draw Rows
                 data.history.forEach((round, index) => {
                     html += "<tr>";
                     data.turn_order.forEach(sid => {
                         var pData = round[sid];
                         if (pData) {
-                            // REVERTED: Kept as ✅ and ❌ for the View Scores Menu
                             var tick = (pData.bid === pData.won) ? "<span style='color:#4CAF50;'>✅</span>" : "<span style='color:#F44336;'>❌</span>";
                             
-                            // --- NEW: CHECK FOR DELETED OR DOUBLED SCORES ---
                             var pointsHtml = `<span>${pData.points_earned}</span>`;
                             
                             if (pData.is_deleted) {
-                                // Draw a thick red line through the number, make it gray
                                 pointsHtml = `<span style="text-decoration: line-through; text-decoration-color: #F44336; text-decoration-thickness: 3px; color: #888;">${pData.points_earned}</span>`;
                             } else if (pData.is_doubled) {
-                                // Make the doubled points pop out (Golden, bold, large)
                                 pointsHtml = `<span style="color: gold; font-weight: bold; font-size: 24px; text-shadow: 1px 1px 2px black;">${pData.points_earned}</span>`;
                             }
 
@@ -983,14 +981,11 @@
                         html += "<tr class='phase-total-row'>";
                         data.turn_order.forEach(sid => {
                             
-                            // ---> THE FIX: Calculate a Snapshot Total! <---
                             let snapshotTotal = 0;
                             
-                            // Loop through the history from round 1 up to this exact phase
                             for (let i = 0; i <= index; i++) {
                                 let pastRound = data.history[i][sid];
                                 
-                                // Add the points (unless Premia deleted them!)
                                 if (pastRound && !pastRound.is_deleted) {
                                     snapshotTotal += pastRound.points_earned;
                                 }
@@ -1022,15 +1017,13 @@
         function toggleChat() {
             var chatBox = document.getElementById("chat-wrapper");
             
-            // Toggle between hiding it and showing it
             if (chatBox.style.display === "none") {
-                chatBox.style.display = "block"; // Show chat
+                chatBox.style.display = "block"; 
                 
-                // Auto-scroll to the bottom of the messages when opened
                 var logsDiv = document.getElementById('logs');
                 logsDiv.scrollTop = logsDiv.scrollHeight; 
             } else {
-                chatBox.style.display = "none"; // Hide chat
+                chatBox.style.display = "none"; 
             }
         }
 
@@ -1059,11 +1052,9 @@
             var cards = handDiv.children;
 
             for (let i = 0; i < cards.length; i++) {
-                // DEFAULT: Make every card "valid" so hover CSS works!
                 cards[i].classList.add("valid-card");
                 cards[i].classList.remove("invalid-card");
                 
-                // RESTRICTION: Only darken if it is YOUR turn AND the backend says it's illegal
                 if (myTurn && myValidIndices.length > 0 && !myValidIndices.includes(i)) {
                     cards[i].classList.remove("valid-card"); 
                     cards[i].classList.add("invalid-card");  
@@ -1072,26 +1063,23 @@
         }
 
         function handleCardClick(card, index) {
-            if (!myTurn) { return; }
+            if (!myTurn) { return; } // Silently do nothing if it's not your turn
             
-            // STOP THE CLICK if it's your turn but you clicked an illegal card
             if (myValidIndices.length > 0 && !myValidIndices.includes(index)) {
-                return; // Do nothing!
+                return; // Silently do nothing if it's an illegal card
             }
 
-            myTurn = false; // Turn is over immediately to prevent double click
-            updateHandVisuals(); // Reset visuals instantly
+            myTurn = false; 
+            updateHandVisuals(); 
 
             if (card.rank === 'Joker') {
                 pendingJokerIndex = index;
                 var modal = document.getElementById("joker-modal");
                 
-                // ---> THE FIX: Target ONLY the Joker modal buttons! <---
                 var jokerTrumpButtons = modal.querySelectorAll(".btn-NT");
                 
                 jokerTrumpButtons.forEach(btn => {
                     if (currentTrumpSuit === null) {
-                        // NO TRUMP: Make the Kozer buttons dark, disabled, and unclickable
                         btn.disabled = true;
                         btn.style.background = "#333";
                         btn.style.color = "#777";
@@ -1099,7 +1087,6 @@
                         btn.style.cursor = "not-allowed";
                         btn.style.opacity = "0.6";
                     } else {
-                        // TRUMP EXISTS: Restore the normal bright CSS styles
                         btn.disabled = false;
                         btn.style.background = ""; 
                         btn.style.color = "";
@@ -1128,7 +1115,6 @@
                 joker_action: action,
                 joker_suit: suit
             });
-            // ---> FIX 3: Tell the modal we are PLAYING, not cancelling! <---
             closeJokerModal(false); 
         }
 
@@ -1143,23 +1129,11 @@
         }
 
         socket.on('hand_update', function(data) {
-            if (isDealing) return; // <-- ADD THIS to ignore background updates while dealing!
+            if (isDealing) return; 
             renderHand(data.hand);
             myTurn = false;
             document.getElementById("my-hand").style.borderTop = "none";
             updateHandVisuals(); 
-        });
-
-        socket.on('error_message', function(data) { 
-            alert(data.msg); 
-            
-            // ---> FIX 2: Only give the turn back if it actually IS their turn! <---
-            if (data.msg === "Not your turn!") {
-                myTurn = false;
-            } else {
-                myTurn = true; 
-            }
-            updateHandVisuals();
         });
 
         socket.on('card_played_on_table', function(data) {
@@ -1200,13 +1174,9 @@
             var banner = document.getElementById("joker-action-banner");
             var textSpan = document.getElementById("joker-action-text");
             
-            // Format the text nicely
             textSpan.innerHTML = `🃏 ${data.name} played Joker:<br><span style="color: white; font-size: 32px;">${data.action}</span>`;
-            
-            // Show the banner
             banner.style.display = "block";
             
-            // Automatically hide it after 4 seconds
             setTimeout(() => {
                 banner.style.display = "none";
             }, 4000);
@@ -1260,7 +1230,6 @@
                 el.onclick = function() { handleCardClick(card, index); };
                 handDiv.appendChild(el);
             });
-            // Automatically apply correct visuals the moment the hand is drawn!
             updateHandVisuals(); 
         }
 
@@ -1275,10 +1244,8 @@
             var scaleX = window.innerWidth / baseWidth;
             var scaleY = window.innerHeight / baseHeight;
 
-            // ---> NEW: Check if this is an actual mobile touchscreen device! <---
             var isTouchDevice = (('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
 
-            // iPhone keyboard fix (only triggers on actual phones now)
             if (isTouchDevice && window.innerWidth <= 800 && window.innerHeight < 450) {
                 scaleY = scaleX; 
             }
@@ -1288,11 +1255,9 @@
 
             if (chatBox) {
                 if (!isTouchDevice) {
-                    // On computer screens, ALWAYS scale the chat perfectly with the table!
                     chatBox.style.transform = `scale(${scale})`;
                     chatBox.style.transformOrigin = "bottom left";
                 } else {
-                    // On mobile phones, remove the scale so your floating CSS modal works perfectly
                     chatBox.style.transform = "none";
                 }
             }
@@ -1314,18 +1279,15 @@
             }
         }
 
-        // Send when clicking the gold button or pressing Enter
         chatSendBtn.addEventListener('click', sendChat);
         chatInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') sendChat();
         });
 
-        // Listen for friends typing messages
         socket.on('receive_chat', function(data) {
             const logsDiv = document.getElementById('logs');
-            // Player chat will be cyan blue so it stands out from game text!
             logsDiv.innerHTML += `<div><b style="color: #00e5ff;">${data.nickname}:</b> <span style="color: white;">${data.message}</span></div>`;
-            logsDiv.scrollTop = logsDiv.scrollHeight; // Auto-scroll to bottom
+            logsDiv.scrollTop = logsDiv.scrollHeight;
         });
         
         // ==========================================
@@ -1347,7 +1309,7 @@
             
             var btn = document.getElementById('scoreboard-close-btn');
             btn.innerText = "🎮 PLAY AGAIN 🎮";
-            btn.style.background = "#4CAF50"; // Bright Green
+            btn.style.background = "#4CAF50"; 
             btn.style.color = "white";
             
             btn.onclick = function() {
@@ -1359,9 +1321,8 @@
             };
         });
 
-        // Listen for the server to reset everyone
         socket.on('force_reload', function() {
-            window.location.reload(); // Instantly refreshes the browser for everyone!
+            window.location.reload(); 
         });
 
         window.addEventListener('resize', resizeGame);
